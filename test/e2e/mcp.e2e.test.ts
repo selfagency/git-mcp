@@ -217,10 +217,9 @@ describe('MCP server E2E - error handling', () => {
     const response = await waitForResponse(server, id);
     // The tool should catch the error and return it in content (not crash the server)
     const result = response.result as { content: Array<{ text: string }> } | undefined;
-    if (result?.content) {
-      expect(result.content[0].text).toMatch(/Error|does not exist|not a git/i);
-    } else {
-      expect(response.error).toBeDefined();
-    }
+    const errorText = result?.content?.[0]?.text ?? '';
+    const hasContentError = /Error|does not exist|not a git/i.test(errorText);
+    const hasProtocolError = response.error !== undefined;
+    expect(hasContentError || hasProtocolError).toBe(true);
   });
 });

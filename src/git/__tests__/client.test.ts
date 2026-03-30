@@ -1,9 +1,10 @@
 import path from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the fs module so we control existsSync
+// Mock the fs module so we control existsSync and statSync
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
+  statSync: vi.fn().mockReturnValue({ isDirectory: () => true }),
 }));
 
 // Mock simple-git
@@ -11,12 +12,13 @@ vi.mock('simple-git', () => ({
   simpleGit: vi.fn().mockReturnValue({ _isMocked: true }),
 }));
 
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { simpleGit } from 'simple-git';
 import { getGit, toGitError, validateRepoPath } from '../client.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(statSync).mockReturnValue({ isDirectory: () => true } as ReturnType<typeof statSync>);
 });
 
 // ---------------------------------------------------------------------------
@@ -79,8 +81,15 @@ describe('validateRepoPath', () => {
     expect(() => validateRepoPath('/nonexistent')).toThrow('Repository path does not exist');
   });
 
+  it('throws when path is not a directory', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<typeof statSync>);
+    expect(() => validateRepoPath('/some/file.txt')).toThrow('Repository path is not a directory');
+  });
+
   it('returns normalized path when it exists', () => {
     vi.mocked(existsSync).mockReturnValue(true);
+    // statSync default mock returns isDirectory: true
     const result = validateRepoPath('/some/valid/path');
     expect(result).toBe(path.resolve('/some/valid/path'));
   });

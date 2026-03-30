@@ -90,17 +90,19 @@ describe('createBranch', () => {
     vi.mocked(getGit).mockReturnValue(git as any);
     const result = await createBranch('/repo', { name: 'feat', fromRef: 'main', checkout: true });
     expect(git.checkoutBranch).toHaveBeenCalledWith('feat', 'main');
-    expect(result).toContain('Created branch feat from main');
+    expect(result).toContain('Created and checked out feat from main');
   });
 
-  it('creates branch from ref and goes back when no checkout', async () => {
+  it('creates branch from ref without checkout stays on current branch', async () => {
     const git = makeGit({
-      checkoutBranch: vi.fn().mockResolvedValue(''),
+      raw: vi.fn().mockResolvedValue(''),
       checkout: vi.fn().mockResolvedValue(''),
     });
     vi.mocked(getGit).mockReturnValue(git as any);
-    await createBranch('/repo', { name: 'feat', fromRef: 'main', checkout: false });
-    expect(git.checkout).toHaveBeenCalledWith('main');
+    const result = await createBranch('/repo', { name: 'feat', fromRef: 'main', checkout: false });
+    expect(git.raw).toHaveBeenCalledWith(['branch', 'feat', 'main']);
+    expect(git.checkout).not.toHaveBeenCalled();
+    expect(result).toContain('Created branch feat from main');
   });
 });
 
