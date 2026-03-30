@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import {
@@ -42,12 +43,13 @@ export function registerBranchTools(server: McpServer): void {
       all,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       all: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const branches = await listBranches(repo_path, all);
+        const repoPath = resolveRepoPath(repo_path);
+        const branches = await listBranches(repoPath, all);
         return {
           content: [{ type: 'text', text: render({ branches }, response_format) }],
           structuredContent: { branches },
@@ -85,14 +87,15 @@ export function registerBranchTools(server: McpServer): void {
       checkout,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       name: string;
       from_ref?: string;
       checkout: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await createBranch(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await createBranch(repoPath, {
           name,
           fromRef: from_ref,
           checkout,
@@ -133,13 +136,14 @@ export function registerBranchTools(server: McpServer): void {
       force,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       name: string;
       force: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await deleteBranch(repo_path, { name, force });
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await deleteBranch(repoPath, { name, force });
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -175,13 +179,14 @@ export function registerBranchTools(server: McpServer): void {
       new_name,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       old_name: string;
       new_name: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await renameBranch(repo_path, old_name, new_name);
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await renameBranch(repoPath, old_name, new_name);
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -217,13 +222,14 @@ export function registerBranchTools(server: McpServer): void {
       create,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       ref: string;
       create: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await checkoutRef(repo_path, ref, create);
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await checkoutRef(repoPath, ref, create);
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -259,13 +265,14 @@ export function registerBranchTools(server: McpServer): void {
       upstream,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       branch: string;
       upstream: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await setUpstream(repo_path, branch, upstream);
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await setUpstream(repoPath, branch, upstream);
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },

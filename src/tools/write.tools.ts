@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { ConfirmSchema, RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { addFiles, commitChanges, resetChanges, restoreFiles, revertCommit } from '../services/write.service.js';
@@ -37,13 +38,14 @@ export function registerWriteTools(server: McpServer): void {
       paths,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       all: boolean;
       paths?: string[];
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await addFiles(repo_path, { all, paths });
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await addFiles(repoPath, { all, paths });
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -83,7 +85,7 @@ export function registerWriteTools(server: McpServer): void {
       source,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       paths: string[];
       staged: boolean;
       worktree: boolean;
@@ -91,7 +93,8 @@ export function registerWriteTools(server: McpServer): void {
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await restoreFiles(repo_path, { paths, staged, worktree, source });
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await restoreFiles(repoPath, { paths, staged, worktree, source });
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -107,13 +110,30 @@ export function registerWriteTools(server: McpServer): void {
     'git_commit',
     {
       title: 'Git Commit',
-      description: 'Create a commit from staged changes, optionally amending the previous commit.',
+      description:
+        'Create a commit from staged changes, optionally amending the previous commit. ' +
+        'Supports GPG/SSH commit signing and bypassing git hooks (if enabled server-side).',
       inputSchema: {
         repo_path: RepoPathSchema,
         message: z.string().min(1),
         all: z.boolean().default(false),
         amend: z.boolean().default(false),
         no_edit: z.boolean().default(false),
+        sign: z
+          .boolean()
+          .default(false)
+          .describe('Sign the commit with GPG/SSH. Defaults to server AUTO_SIGN_COMMITS setting.'),
+        signing_key: z
+          .string()
+          .optional()
+          .describe('Specific signing key ID or path. Falls back to GIT_SIGNING_KEY env var.'),
+        no_verify: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Bypass pre-commit and commit-msg hooks (--no-verify). ' +
+              'Only accepted when GIT_ALLOW_NO_VERIFY=true is set on the server.',
+          ),
         response_format: ResponseFormatSchema,
       },
       annotations: {
@@ -129,21 +149,31 @@ export function registerWriteTools(server: McpServer): void {
       all,
       amend,
       no_edit,
+      sign,
+      signing_key,
+      no_verify,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       message: string;
       all: boolean;
       amend: boolean;
       no_edit: boolean;
+      sign: boolean;
+      signing_key?: string;
+      no_verify: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const commitMessage = await commitChanges(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const commitMessage = await commitChanges(repoPath, {
           message,
           all,
           amend,
           noEdit: no_edit,
+          sign,
+          signingKey: signing_key,
+          noVerify: no_verify,
         });
 
         return {
@@ -185,7 +215,7 @@ export function registerWriteTools(server: McpServer): void {
       confirm,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       mode: 'soft' | 'mixed' | 'hard';
       target?: string;
       paths?: string[];
@@ -197,7 +227,8 @@ export function registerWriteTools(server: McpServer): void {
           throw new Error('Hard reset requires confirm=true.');
         }
 
-        const message = await resetChanges(repo_path, { mode, target, paths });
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await resetChanges(repoPath, { mode, target, paths });
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -235,14 +266,15 @@ export function registerWriteTools(server: McpServer): void {
       mainline,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       ref: string;
       no_commit: boolean;
       mainline?: number;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await revertCommit(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await revertCommit(repoPath, {
           ref,
           noCommit: no_commit,
           mainline,

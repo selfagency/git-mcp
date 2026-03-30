@@ -1,3 +1,4 @@
+import { AUTO_SIGN_TAGS, DEFAULT_SIGNING_KEY } from '../config.js';
 import { getGit } from '../git/client.js';
 
 export interface StashActionOptions {
@@ -30,6 +31,10 @@ export interface TagActionOptions {
   readonly name?: string;
   readonly target?: string;
   readonly message?: string;
+  /** Sign the tag. Defaults to AUTO_SIGN_TAGS server config. */
+  readonly sign?: boolean;
+  /** Signing key to use. Falls back to DEFAULT_SIGNING_KEY, then git's user.signingkey. */
+  readonly signingKey?: string;
 }
 
 export interface WorktreeActionOptions {
@@ -186,9 +191,15 @@ export async function runTagAction(repoPath: string, options: TagActionOptions):
     throw new Error('name is required for create action.');
   }
 
-  const args = [options.name];
-  if (options.target) {
-    args.push(options.target);
+  const shouldSign = options.sign ?? AUTO_SIGN_TAGS;
+
+  if (shouldSign) {
+    const key = options.signingKey ?? DEFAULT_SIGNING_KEY;
+    const signFlag = key ? ['-u', key] : ['-s'];
+    const msgFlag = options.message ? ['-m', options.message] : ['-m', options.name];
+    const targetArg = options.target ? [options.target] : [];
+    await git.raw(['tag', ...signFlag, ...msgFlag, options.name, ...targetArg]);
+    return `Created signed tag ${options.name}.`;
   }
 
   if (options.message) {

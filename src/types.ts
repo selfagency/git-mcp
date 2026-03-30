@@ -36,8 +36,8 @@ export interface BranchInfo {
 
 export interface RemoteInfo {
   readonly name: string;
-  readonly fetchUrl: string;
-  readonly pushUrl: string;
+  readonly fetchUrl?: string;
+  readonly pushUrl?: string;
 }
 
 export interface DiffSummary {

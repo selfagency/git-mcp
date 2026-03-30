@@ -1,3 +1,4 @@
+import { ALLOW_FORCE_PUSH, ALLOW_NO_VERIFY } from '../config.js';
 import { getGit } from '../git/client.js';
 import type { RemoteInfo } from '../types.js';
 
@@ -24,7 +25,25 @@ export interface PushOptions {
   readonly branch?: string;
   readonly setUpstream: boolean;
   readonly forceWithLease: boolean;
+  /** Hard force push. Requires ALLOW_FORCE_PUSH=true. Only use when you know what you are doing. */
+  readonly force?: boolean;
+  /** Pass --no-verify to bypass pre-push hooks. Requires ALLOW_NO_VERIFY=true. */
+  readonly noVerify?: boolean;
   readonly tags: boolean;
+}
+
+function sanitizeRemoteUrl(url: string | undefined): string | undefined {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.username && !parsed.password) return url;
+    parsed.username = '';
+    parsed.password = '';
+    return parsed.toString();
+  } catch {
+    // SCP-style URLs (e.g. git@github.com:org/repo.git) are not parseable by URL
+    return url;
+  }
 }
 
 export async function listRemotes(repoPath: string): Promise<RemoteInfo[]> {
@@ -33,8 +52,8 @@ export async function listRemotes(repoPath: string): Promise<RemoteInfo[]> {
 
   return remotes.map(remote => ({
     name: remote.name,
-    fetchUrl: remote.refs.fetch,
-    pushUrl: remote.refs.push,
+    fetchUrl: sanitizeRemoteUrl(remote.refs.fetch),
+    pushUrl: sanitizeRemoteUrl(remote.refs.push),
   }));
 }
 
@@ -98,6 +117,19 @@ export async function pullRemote(repoPath: string, options: PullOptions): Promis
 export async function pushRemote(repoPath: string, options: PushOptions): Promise<string> {
   const git = getGit(repoPath);
 
+  if (options.noVerify && !ALLOW_NO_VERIFY) {
+    throw new Error(
+      'no_verify is disabled on this server. Set GIT_ALLOW_NO_VERIFY=true to permit bypassing git hooks.',
+    );
+  }
+
+  if (options.force && !ALLOW_FORCE_PUSH) {
+    throw new Error(
+      'force push is disabled on this server. Set GIT_ALLOW_FORCE_PUSH=true to enable it. ' +
+        'Consider using force_with_lease instead for a safer alternative.',
+    );
+  }
+
   const pushOptions: string[] = [];
   if (options.setUpstream) {
     pushOptions.push('--set-upstream');
@@ -107,8 +139,16 @@ export async function pushRemote(repoPath: string, options: PushOptions): Promis
     pushOptions.push('--force-with-lease');
   }
 
+  if (options.force) {
+    pushOptions.push('--force');
+  }
+
   if (options.tags) {
     pushOptions.push('--tags');
+  }
+
+  if (options.noVerify) {
+    pushOptions.push('--no-verify');
   }
 
   await git.push(options.remote, options.branch, pushOptions);

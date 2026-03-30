@@ -2,12 +2,23 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import {
+  ALLOW_FORCE_PUSH,
+  ALLOW_NO_VERIFY,
+  AUTO_SIGN_COMMITS,
+  AUTO_SIGN_TAGS,
+  DEFAULT_REPO_PATH,
+  DEFAULT_SIGNING_KEY,
+} from './config.js';
 import { SERVER_NAME, SERVER_VERSION } from './constants.js';
 import { registerGitResources } from './resources/git.resources.js';
 import { registerAdvancedTools } from './tools/advanced.tools.js';
 import { registerBranchTools } from './tools/branch.tools.js';
 import { registerContextTools } from './tools/context.tools.js';
+import { registerDocsTools } from './tools/docs.tools.js';
+import { registerFlowTools } from './tools/flow.tools.js';
 import { registerInspectTools } from './tools/inspect.tools.js';
+import { registerLfsTools } from './tools/lfs.tools.js';
 import { registerRemoteTools } from './tools/remote.tools.js';
 import { registerWriteTools } from './tools/write.tools.js';
 
@@ -22,6 +33,9 @@ registerBranchTools(server);
 registerRemoteTools(server);
 registerAdvancedTools(server);
 registerContextTools(server);
+registerLfsTools(server);
+registerFlowTools(server);
+registerDocsTools(server);
 registerGitResources(server);
 
 server.registerTool(
@@ -51,6 +65,14 @@ server.registerTool(
 );
 
 async function main(): Promise<void> {
+  if (DEFAULT_REPO_PATH) {
+    console.error(`[git-mcp] default repository path: ${DEFAULT_REPO_PATH}`);
+  }
+  if (ALLOW_NO_VERIFY) console.error('[git-mcp] hook bypass enabled (GIT_ALLOW_NO_VERIFY=true)');
+  if (ALLOW_FORCE_PUSH) console.error('[git-mcp] force push enabled (GIT_ALLOW_FORCE_PUSH=true)');
+  if (AUTO_SIGN_COMMITS) console.error('[git-mcp] auto-signing commits (GIT_AUTO_SIGN_COMMITS=true)');
+  if (AUTO_SIGN_TAGS) console.error('[git-mcp] auto-signing tags (GIT_AUTO_SIGN_TAGS=true)');
+  if (DEFAULT_SIGNING_KEY) console.error(`[git-mcp] signing key: ${DEFAULT_SIGNING_KEY}`);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

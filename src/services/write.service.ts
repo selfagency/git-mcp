@@ -1,3 +1,4 @@
+import { ALLOW_NO_VERIFY, AUTO_SIGN_COMMITS, DEFAULT_SIGNING_KEY } from '../config.js';
 import { getGit } from '../git/client.js';
 
 export interface GitAddOptions {
@@ -17,6 +18,12 @@ export interface GitCommitOptions {
   readonly all: boolean;
   readonly amend: boolean;
   readonly noEdit: boolean;
+  /** Sign the commit. Defaults to AUTO_SIGN_COMMITS server config. */
+  readonly sign?: boolean;
+  /** Signing key to use. Falls back to DEFAULT_SIGNING_KEY, then git's user.signingkey. */
+  readonly signingKey?: string;
+  /** Pass --no-verify to bypass pre-commit/commit-msg hooks. Requires ALLOW_NO_VERIFY=true. */
+  readonly noVerify?: boolean;
 }
 
 export interface GitResetOptions {
@@ -78,6 +85,12 @@ export async function restoreFiles(repoPath: string, options: GitRestoreOptions)
 export async function commitChanges(repoPath: string, options: GitCommitOptions): Promise<string> {
   const git = getGit(repoPath);
 
+  if (options.noVerify && !ALLOW_NO_VERIFY) {
+    throw new Error(
+      'no_verify is disabled on this server. Set GIT_ALLOW_NO_VERIFY=true to permit bypassing git hooks.',
+    );
+  }
+
   const args: string[] = [];
   if (options.all) {
     args.push('-a');
@@ -87,6 +100,15 @@ export async function commitChanges(repoPath: string, options: GitCommitOptions)
   }
   if (options.noEdit) {
     args.push('--no-edit');
+  }
+  if (options.noVerify) {
+    args.push('--no-verify');
+  }
+
+  const shouldSign = options.sign ?? AUTO_SIGN_COMMITS;
+  if (shouldSign) {
+    const key = options.signingKey ?? DEFAULT_SIGNING_KEY;
+    args.push(key ? `--gpg-sign=${key}` : '--gpg-sign');
   }
 
   // simple-git expects message, then options array (as second arg), not third

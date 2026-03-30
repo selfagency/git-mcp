@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import {
@@ -37,9 +38,10 @@ export function registerInspectTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async ({ repo_path, response_format }: { repo_path: string; response_format: 'markdown' | 'json' }) => {
+    async ({ repo_path, response_format }: { repo_path: string | undefined; response_format: 'markdown' | 'json' }) => {
       try {
-        const status = await getStatus(repo_path);
+        const repoPath = resolveRepoPath(repo_path);
+        const status = await getStatus(repoPath);
         return {
           content: [{ type: 'text', text: toText(status, response_format) }],
           structuredContent: { status },
@@ -85,7 +87,7 @@ export function registerInspectTools(server: McpServer): void {
       file_path,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       limit: number;
       offset: number;
       author?: string;
@@ -96,7 +98,8 @@ export function registerInspectTools(server: McpServer): void {
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const commits = await getLog(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const commits = await getLog(repoPath, {
           limit,
           offset,
           author,
@@ -139,12 +142,13 @@ export function registerInspectTools(server: McpServer): void {
       ref,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       ref: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await showRef(repo_path, ref);
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await showRef(repoPath, ref);
         return {
           content: [{ type: 'text', text: toText(output, response_format) }],
           structuredContent: { ref, output },
@@ -184,7 +188,7 @@ export function registerInspectTools(server: McpServer): void {
       filtered,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       mode: 'unstaged' | 'staged' | 'refs';
       from_ref?: string;
       to_ref?: string;
@@ -192,14 +196,15 @@ export function registerInspectTools(server: McpServer): void {
       response_format: 'markdown' | 'json';
     }) => {
       try {
+        const repoPath = resolveRepoPath(repo_path);
         const [summary, output] = await Promise.all([
-          getDiffSummary(repo_path, {
+          getDiffSummary(repoPath, {
             mode,
             fromRef: from_ref,
             toRef: to_ref,
             filtered,
           }),
-          getDiff(repo_path, {
+          getDiff(repoPath, {
             mode,
             fromRef: from_ref,
             toRef: to_ref,
@@ -243,13 +248,14 @@ export function registerInspectTools(server: McpServer): void {
       ref,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       file_path: string;
       ref?: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await blameFile(repo_path, file_path, ref);
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await blameFile(repoPath, file_path, ref);
         return {
           content: [{ type: 'text', text: toText(output, response_format) }],
           structuredContent: { file_path, ref, output },
@@ -283,12 +289,13 @@ export function registerInspectTools(server: McpServer): void {
       limit,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       limit: number;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await getReflog(repo_path, limit);
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await getReflog(repoPath, limit);
         return {
           content: [{ type: 'text', text: toText(output, response_format) }],
           structuredContent: { output },

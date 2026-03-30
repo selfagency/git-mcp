@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import {
@@ -54,7 +55,7 @@ export function registerAdvancedTools(server: McpServer): void {
       include_untracked,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'save' | 'list' | 'apply' | 'pop' | 'drop';
       message?: string;
       index?: number;
@@ -62,7 +63,8 @@ export function registerAdvancedTools(server: McpServer): void {
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await runStashAction(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await runStashAction(repoPath, {
           action,
           message,
           index,
@@ -103,13 +105,14 @@ export function registerAdvancedTools(server: McpServer): void {
       onto,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'start' | 'continue' | 'abort' | 'skip';
       onto?: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await runRebaseAction(repo_path, { action, onto });
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await runRebaseAction(repoPath, { action, onto });
         return {
           content: [{ type: 'text', text: render({ output }, response_format) }],
           structuredContent: { output },
@@ -144,13 +147,14 @@ export function registerAdvancedTools(server: McpServer): void {
       ref,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'start' | 'continue' | 'abort';
       ref?: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await runCherryPickAction(repo_path, { action, ref });
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await runCherryPickAction(repoPath, { action, ref });
         return {
           content: [{ type: 'text', text: render({ output }, response_format) }],
           structuredContent: { output },
@@ -191,7 +195,7 @@ export function registerAdvancedTools(server: McpServer): void {
       command,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'start' | 'good' | 'bad' | 'skip' | 'run' | 'reset';
       ref?: string;
       good_ref?: string;
@@ -200,7 +204,8 @@ export function registerAdvancedTools(server: McpServer): void {
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await runBisectAction(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await runBisectAction(repoPath, {
           action,
           ref,
           goodRef: good_ref,
@@ -222,13 +227,21 @@ export function registerAdvancedTools(server: McpServer): void {
     'git_tag',
     {
       title: 'Git Tag Actions',
-      description: 'List, create, or delete tags.',
+      description: 'List, create, or delete tags. Supports GPG/SSH signed tags.',
       inputSchema: {
         repo_path: RepoPathSchema,
         action: z.enum(['list', 'create', 'delete']),
         name: z.string().optional(),
         target: z.string().optional(),
         message: z.string().optional(),
+        sign: z
+          .boolean()
+          .default(false)
+          .describe('Create a signed tag (-s/-u). Defaults to server AUTO_SIGN_TAGS setting.'),
+        signing_key: z
+          .string()
+          .optional()
+          .describe('Specific signing key ID or path. Falls back to GIT_SIGNING_KEY env var.'),
         response_format: ResponseFormatSchema,
       },
       annotations: {
@@ -244,17 +257,29 @@ export function registerAdvancedTools(server: McpServer): void {
       name,
       target,
       message,
+      sign,
+      signing_key,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'list' | 'create' | 'delete';
       name?: string;
       target?: string;
       message?: string;
+      sign: boolean;
+      signing_key?: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await runTagAction(repo_path, { action, name, target, message });
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await runTagAction(repoPath, {
+          action,
+          name,
+          target,
+          message,
+          sign,
+          signingKey: signing_key,
+        });
         return {
           content: [{ type: 'text', text: render({ output }, response_format) }],
           structuredContent: { output },
@@ -291,14 +316,15 @@ export function registerAdvancedTools(server: McpServer): void {
       branch,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'add' | 'list' | 'remove';
       path?: string;
       branch?: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await runWorktreeAction(repo_path, { action, path, branch });
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await runWorktreeAction(repoPath, { action, path, branch });
         return {
           content: [{ type: 'text', text: render({ output }, response_format) }],
           structuredContent: { output },
@@ -337,7 +363,7 @@ export function registerAdvancedTools(server: McpServer): void {
       recursive,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'add' | 'list' | 'update' | 'sync';
       url?: string;
       path?: string;
@@ -345,7 +371,8 @@ export function registerAdvancedTools(server: McpServer): void {
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await runSubmoduleAction(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await runSubmoduleAction(repoPath, {
           action,
           url,
           path,

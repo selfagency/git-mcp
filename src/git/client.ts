@@ -1,7 +1,7 @@
-import path from "node:path";
-import { existsSync } from "node:fs";
-import { simpleGit, type SimpleGit } from "simple-git";
-import type { GitError, GitErrorKind } from "../types.js";
+import { existsSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { simpleGit, type SimpleGit } from 'simple-git';
+import type { GitError, GitErrorKind } from '../types.js';
 
 const GIT_NOT_FOUND_PATTERN = /(not found|is not recognized|ENOENT)/i;
 const PERMISSION_PATTERN = /(permission denied|EACCES|EPERM)/i;
@@ -10,35 +10,35 @@ const NETWORK_PATTERN = /(network|timed out|unable to access|could not resolve h
 
 function classifyError(message: string): GitErrorKind {
   if (GIT_NOT_FOUND_PATTERN.test(message)) {
-    return "missing_git";
+    return 'missing_git';
   }
 
   if (PERMISSION_PATTERN.test(message)) {
-    return "permission";
+    return 'permission';
   }
 
   if (CONFLICT_PATTERN.test(message)) {
-    return "git_conflict";
+    return 'git_conflict';
   }
 
   if (NETWORK_PATTERN.test(message)) {
-    return "network";
+    return 'network';
   }
 
-  return "unknown";
+  return 'unknown';
 }
 
 export function toGitError(error: unknown): GitError {
   if (error instanceof Error) {
     return {
       kind: classifyError(error.message),
-      message: error.message
+      message: error.message,
     };
   }
 
   return {
-    kind: "unknown",
-    message: String(error)
+    kind: 'unknown',
+    message: String(error),
   };
 }
 
@@ -49,15 +49,14 @@ export function validateRepoPath(repoPath: string): string {
     throw new Error(`Repository path does not exist: ${repoPath}`);
   }
 
-  const normalized = path.normalize(resolved);
-  if (normalized.includes("..")) {
-    throw new Error("Path traversal is not allowed.");
+  if (!statSync(resolved).isDirectory()) {
+    throw new Error(`Repository path is not a directory: ${repoPath}`);
   }
 
-  return normalized;
+  return resolved;
 }
 
 export function getGit(repoPath: string): SimpleGit {
   const safePath = validateRepoPath(repoPath);
-  return simpleGit({ baseDir: safePath, binary: "git", maxConcurrentProcesses: 6 });
+  return simpleGit({ baseDir: safePath, binary: 'git', maxConcurrentProcesses: 6 });
 }

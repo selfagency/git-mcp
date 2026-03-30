@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { getConfig, getContextSummary, searchHistory, setConfig } from '../services/context.service.js';
@@ -34,9 +35,10 @@ export function registerContextTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async ({ repo_path, response_format }: { repo_path: string; response_format: 'markdown' | 'json' }) => {
+    async ({ repo_path, response_format }: { repo_path: string | undefined; response_format: 'markdown' | 'json' }) => {
       try {
-        const summary = await getContextSummary(repo_path);
+        const repoPath = resolveRepoPath(repo_path);
+        const summary = await getContextSummary(repoPath);
         return {
           content: [{ type: 'text', text: render(summary, response_format) }],
           structuredContent: { summary },
@@ -71,13 +73,14 @@ export function registerContextTools(server: McpServer): void {
       limit,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       query: string;
       limit: number;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const output = await searchHistory(repo_path, query, limit);
+        const repoPath = resolveRepoPath(repo_path);
+        const output = await searchHistory(repoPath, query, limit);
         return {
           content: [{ type: 'text', text: render({ output }, response_format) }],
           structuredContent: { output },
@@ -110,12 +113,13 @@ export function registerContextTools(server: McpServer): void {
       key,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       key?: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const value = await getConfig(repo_path, key);
+        const repoPath = resolveRepoPath(repo_path);
+        const value = await getConfig(repoPath, key);
         return {
           content: [{ type: 'text', text: render({ value }, response_format) }],
           structuredContent: { value },
@@ -150,13 +154,14 @@ export function registerContextTools(server: McpServer): void {
       value,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       key: string;
       value: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await setConfig(repo_path, key, value);
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await setConfig(repoPath, key, value);
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },

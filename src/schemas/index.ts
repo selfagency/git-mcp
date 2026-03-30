@@ -2,8 +2,12 @@ import { z } from 'zod';
 
 export const RepoPathSchema = z
   .string()
-  .min(1, 'repo_path is required')
-  .describe('Absolute path to the local Git repository.');
+  .min(1)
+  .optional()
+  .describe(
+    'Absolute path to the local Git repository. ' +
+      'If omitted, falls back to the server default set via the GIT_REPO_PATH environment variable or --repo-path CLI argument.',
+  );
 
 export const RefSchema = z
   .string()

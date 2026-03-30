@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { fetchRemote, listRemotes, manageRemote, pullRemote, pushRemote } from '../services/remote.service.js';
@@ -29,9 +30,10 @@ export function registerRemoteTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async ({ repo_path, response_format }: { repo_path: string; response_format: 'markdown' | 'json' }) => {
+    async ({ repo_path, response_format }: { repo_path: string | undefined; response_format: 'markdown' | 'json' }) => {
       try {
-        const remotes = await listRemotes(repo_path);
+        const repoPath = resolveRepoPath(repo_path);
+        const remotes = await listRemotes(repoPath);
         return {
           content: [{ type: 'text', text: render({ remotes }, response_format) }],
           structuredContent: { remotes },
@@ -69,14 +71,15 @@ export function registerRemoteTools(server: McpServer): void {
       url,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       action: 'add' | 'remove' | 'set-url';
       name: string;
       url?: string;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await manageRemote(repo_path, { action, name, url });
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await manageRemote(repoPath, { action, name, url });
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -114,14 +117,15 @@ export function registerRemoteTools(server: McpServer): void {
       prune,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       remote?: string;
       branch?: string;
       prune: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await fetchRemote(repo_path, { remote, branch, prune });
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await fetchRemote(repoPath, { remote, branch, prune });
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -159,14 +163,15 @@ export function registerRemoteTools(server: McpServer): void {
       rebase,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       remote?: string;
       branch?: string;
       rebase: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await pullRemote(repo_path, { remote, branch, rebase });
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await pullRemote(repoPath, { remote, branch, rebase });
         return {
           content: [{ type: 'text', text: render({ message }, response_format) }],
           structuredContent: { message },
@@ -182,13 +187,28 @@ export function registerRemoteTools(server: McpServer): void {
     'git_push',
     {
       title: 'Git Push',
-      description: 'Push to remote with safe force option (`--force-with-lease`).',
+      description:
+        'Push to remote. Supports safe force (`--force-with-lease`), hard force (if enabled server-side), ' +
+        'and bypassing pre-push hooks (if enabled server-side).',
       inputSchema: {
         repo_path: RepoPathSchema,
         remote: z.string().optional(),
         branch: z.string().optional(),
         set_upstream: z.boolean().default(false),
         force_with_lease: z.boolean().default(false),
+        force: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Hard force push (--force). Only accepted when GIT_ALLOW_FORCE_PUSH=true is set on the server. ' +
+              'Prefer force_with_lease unless you have a specific reason for a hard force.',
+          ),
+        no_verify: z
+          .boolean()
+          .default(false)
+          .describe(
+            'Bypass pre-push hooks (--no-verify). Only accepted when GIT_ALLOW_NO_VERIFY=true is set on the server.',
+          ),
         tags: z.boolean().default(false),
         response_format: ResponseFormatSchema,
       },
@@ -205,23 +225,30 @@ export function registerRemoteTools(server: McpServer): void {
       branch,
       set_upstream,
       force_with_lease,
+      force,
+      no_verify,
       tags,
       response_format,
     }: {
-      repo_path: string;
+      repo_path: string | undefined;
       remote?: string;
       branch?: string;
       set_upstream: boolean;
       force_with_lease: boolean;
+      force: boolean;
+      no_verify: boolean;
       tags: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
-        const message = await pushRemote(repo_path, {
+        const repoPath = resolveRepoPath(repo_path);
+        const message = await pushRemote(repoPath, {
           remote,
           branch,
           setUpstream: set_upstream,
           forceWithLease: force_with_lease,
+          force,
+          noVerify: no_verify,
           tags,
         });
 

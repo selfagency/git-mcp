@@ -17,7 +17,7 @@ export async function listBranches(repoPath: string, all: boolean): Promise<Bran
   const summary = await git.branch(all ? ['-a'] : []);
 
   return summary.all.map(name => {
-    const details = summary.branches[name];
+    const details = Object.hasOwn(summary.branches, name) ? summary.branches[name] : undefined;
     return {
       name,
       isCurrent: summary.current === name,
@@ -31,11 +31,14 @@ export async function createBranch(repoPath: string, options: CreateBranchOption
   const git = getGit(repoPath);
 
   if (options.fromRef) {
-    await git.checkoutBranch(options.name, options.fromRef);
-    if (!options.checkout) {
-      await git.checkout(options.fromRef);
+    if (options.checkout) {
+      await git.checkoutBranch(options.name, options.fromRef);
+    } else {
+      await git.raw(['branch', options.name, options.fromRef]);
     }
-    return `Created branch ${options.name} from ${options.fromRef}.`;
+    return options.checkout
+      ? `Created and checked out ${options.name} from ${options.fromRef}.`
+      : `Created branch ${options.name} from ${options.fromRef}.`;
   }
 
   await git.branch([options.name]);
