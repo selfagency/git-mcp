@@ -196,7 +196,8 @@ export async function runTagAction(repoPath: string, options: TagActionOptions):
     return `Created annotated tag ${options.name}.`;
   }
 
-  await git.addTag(args);
+  // Only pass the tag name (string) to addTag
+  await git.addTag(options.name);
   return `Created tag ${options.name}.`;
 }
 

@@ -39,7 +39,7 @@ export function registerContextTools(server: McpServer): void {
         const summary = await getContextSummary(repo_path);
         return {
           content: [{ type: 'text', text: render(summary, response_format) }],
-          structuredContent: summary,
+          structuredContent: { summary },
         };
       } catch (error) {
         return buildError(error);

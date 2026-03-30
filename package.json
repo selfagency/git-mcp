@@ -1,45 +1,69 @@
 {
-  "name": "git-mcp",
-  "version": "1.0.0",
-  "description": "A production-minded Git MCP server using simple-git",
-  "type": "module",
-  "main": "dist/index.js",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsup",
-    "start": "node dist/index.js",
-    "lint": "oxlint .",
-    "test": "vitest run",
-    "prepare": "husky"
+  "name": "@selfagency/git-mcp",
+  "version": "0.1.0",
+  "description": "A Git MCP server that doesn't suck",
+  "keywords": [
+    "git",
+    "mcp",
+    "model context protocol",
+    "server"
+  ],
+  "bugs": {
+    "url": "https://github.com/selfagency/git-mcp/issues"
   },
-  "keywords": [],
+  "license": "MIT",
   "author": {
     "name": "Daniel Sieradski",
     "email": "daniel@self.agency"
-  },
-  "bugs": {
-    "url": "https://github.com/selfagency/git-mcp/issues"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/selfagency/git-mcp.git"
   },
-  "license": "MIT",
-  "packageManager": "pnpm@10.32.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsup",
+    "postbuild": "node scripts/write-dist-package.js",
+    "start": "node dist/index.js",
+    "release": "zx scripts/release.js",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint . --fix",
+    "format": "oxfmt . --write",
+    "format:check": "oxfmt . --check",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepare": "husky"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
     "simple-git": "^3.33.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@octokit/rest": "^22.0.1",
     "@types/node": "25.5.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
+    "ora": "^9.3.0",
     "oxfmt": "^0.42.0",
     "oxlint": "^1.57.0",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "6.0.2",
-    "vitest": "4.1.2"
-  }
+    "vite": "^6.4.1",
+    "vitest": "4.1.2",
+    "zx": "^8.8.5"
+  },
+  "lint-staged": {
+    "*.{ts,mts,cts,js,mjs,cjs}": [
+      "oxlint --fix",
+      "oxfmt --write"
+    ],
+    "*.{json,yaml,yml,md}": [
+      "oxfmt --write"
+    ]
+  },
+  "packageManager": "pnpm@10.32.1"
 }

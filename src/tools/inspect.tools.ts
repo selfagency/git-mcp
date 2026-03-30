@@ -42,7 +42,7 @@ export function registerInspectTools(server: McpServer): void {
         const status = await getStatus(repo_path);
         return {
           content: [{ type: 'text', text: toText(status, response_format) }],
-          structuredContent: status,
+          structuredContent: { status },
         };
       } catch (error) {
         const gitError = toGitError(error);

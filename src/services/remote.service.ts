@@ -70,8 +70,17 @@ export async function fetchRemote(repoPath: string, options: FetchOptions): Prom
     args.push('--prune');
   }
 
-  await git.fetch(options.remote, options.branch, args);
-  return `Fetched ${options.remote ?? 'default remote'}${options.branch ? `/${options.branch}` : ''}.`;
+  // Only pass remote and branch if they are defined, otherwise use overloads
+  if (options.remote && options.branch) {
+    await git.fetch(options.remote, options.branch, args);
+    return `Fetched ${options.remote}/${options.branch}.`;
+  } else if (options.remote) {
+    await git.fetch(options.remote, args);
+    return `Fetched ${options.remote}.`;
+  } else {
+    await git.fetch(args);
+    return 'Fetched default remote.';
+  }
 }
 
 export async function pullRemote(repoPath: string, options: PullOptions): Promise<string> {

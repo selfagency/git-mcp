@@ -82,16 +82,15 @@ export async function commitChanges(repoPath: string, options: GitCommitOptions)
   if (options.all) {
     args.push('-a');
   }
-
   if (options.amend) {
     args.push('--amend');
   }
-
   if (options.noEdit) {
     args.push('--no-edit');
   }
 
-  const result = await git.commit(options.message, undefined, args);
+  // simple-git expects message, then options array (as second arg), not third
+  const result = await git.commit(options.message, args);
   return `Committed ${result.commit}.`;
 }
 
