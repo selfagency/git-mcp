@@ -34,7 +34,7 @@
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "prepare": "husky",
-    "release": "zx scripts/release.js",
+    "release": "zx scripts/release.mjs",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
