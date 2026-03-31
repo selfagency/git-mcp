@@ -3,7 +3,8 @@
   "plugins": ["unicorn", "typescript", "oxc", "import", "promise", "node", "vitest"],
   "categories": {},
   "rules": {
-    "jest/valid-expect": "off"
+    "jest/valid-expect": "off",
+    "vitest/require-mock-type-parameters": "off"
   },
   "settings": {
     "jsdoc": {
