@@ -85,7 +85,7 @@ Use for hotfixes and maintenance branches.
 2. Switch to the target branch:
    - `git_checkout`
 3. Apply the fix:
-   - `git_cherry_pick` with `action: "start"`
+   - `git_cherry_pick` with `action: "start"` and `ref` set to the commit SHA or source ref to backport
 4. If conflicts happen:
    - inspect with `git_status`
    - resolve files
@@ -215,13 +215,13 @@ Prefer for scheduled releases and release branches.
 
 Use:
 
-- `git_flow` `init`
-- `git_flow` `feature-start`
-- `git_flow` `feature-finish`
-- `git_flow` `release-start`
-- `git_flow` `release-finish`
-- `git_flow` `hotfix-start`
-- `git_flow` `hotfix-finish`
+- `git_flow` with `action: "init"`
+- `git_flow` with `action: "feature-start"` and `name` set for the feature branch
+- `git_flow` with `action: "feature-finish"` and `name` set for the feature branch
+- `git_flow` with `action: "release-start"` and `name` set for the release version
+- `git_flow` with `action: "release-finish"` and `name` set for the release version
+- `git_flow` with `action: "hotfix-start"` and `name` set for the hotfix version
+- `git_flow` with `action: "hotfix-finish"` and `name` set for the hotfix version
 
 ### Trunk-based development
 

@@ -80,7 +80,7 @@ Then add targeted inspection as needed.
 - Rebase a feature branch: `git_rebase`
   - Supports start, continue, abort, and skip
 - Backport a fix: `git_cherry_pick`
-  - Inspect the source commit first
+  - Use `action: "start"` with `ref` set to the source commit or ref to backport
 - Find a regression commit: `git_bisect`
   - Supports manual and command-driven bisect flows
 - Create, list, or delete tags: `git_tag`
