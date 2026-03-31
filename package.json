@@ -20,9 +20,7 @@
     "type": "git",
     "url": "git+https://github.com/selfagency/git-mcp.git"
   },
-  "bin": {
-    "git-mcp": "dist/index.js"
-  },
+  "bin": "dist/index.js",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

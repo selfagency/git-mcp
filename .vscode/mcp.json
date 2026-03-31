@@ -8,10 +8,6 @@
         "--repo-path",
         "${workspaceFolder}"
       ]
-    },
-    "tasks": {
-      "command": "mcp-taskfile-server",
-      "type": "stdio"
     }
   }
 }
