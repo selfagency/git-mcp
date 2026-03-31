@@ -81,6 +81,14 @@ function runInteractive(command, args, options = {}) {
     ...options,
   });
 
+  if (result.error) {
+    throw new Error(`${command} ${args.join(' ')} failed to spawn: ${result.error.message}`);
+  }
+
+  if (result.signal) {
+    throw new Error(`${command} ${args.join(' ')} was terminated by signal ${result.signal}`);
+  }
+
   if (result.status !== 0) {
     throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}`);
   }
@@ -94,6 +102,14 @@ function cleanupTempNpmConfig() {
   rmSync(tempNpmConfigDir, { recursive: true, force: true });
   tempNpmConfigDir = '';
 }
+
+process.on('exit', () => {
+  try {
+    cleanupTempNpmConfig();
+  } catch {
+    // Best-effort cleanup; ignore errors on process exit.
+  }
+});
 
 /**
  * @param {string} registry
@@ -117,17 +133,23 @@ function configureNpmAuth(registry) {
 
   process.env.NODE_AUTH_TOKEN ||= npmToken;
 
-  if (existingConfig.includes('_authToken')) {
+  const normalizedRegistry = registry.replace(/\/+$/, '/');
+  const registryKey = normalizedRegistry.replace(/^https?:/, '');
+
+  if (existingConfig.includes(`${registryKey}:_authToken=`)) {
     return;
   }
 
-  const normalizedRegistry = registry.replace(/\/+$/, '/');
-  const authLine = `${normalizedRegistry.replace(/^https?:/, '')}:_authToken=${npmToken}`;
+  const authLine = `${registryKey}:_authToken=${npmToken}`;
   tempNpmConfigDir = mkdtempSync(resolve(tmpdir(), 'git-mcp-release-'));
 
   const tempUserConfig = resolve(tempNpmConfigDir, '.npmrc');
   const prefix = existingConfig.trimEnd();
-  writeFileSync(tempUserConfig, `${prefix}${prefix ? '\n' : ''}${authLine}\nalways-auth=true\n`);
+  writeFileSync(
+    tempUserConfig,
+    `${prefix}${prefix ? '\n' : ''}${authLine}\nalways-auth=true\n`,
+    { encoding: 'utf8', mode: 0o600 },
+  );
   process.env.NPM_CONFIG_USERCONFIG = tempUserConfig;
 }
 
@@ -539,6 +561,5 @@ main().catch(async err => {
     console.error(`❌ ${msg}`);
   }
   await rollback();
-  cleanupTempNpmConfig();
   process.exit(err?.exitCode ?? 1);
 });
