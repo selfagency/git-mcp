@@ -144,11 +144,10 @@ function configureNpmAuth(registry) {
 
   const tempUserConfig = resolve(tempNpmConfigDir, '.npmrc');
   const prefix = existingConfig.trimEnd();
-  writeFileSync(
-    tempUserConfig,
-    `${prefix}${prefix ? '\n' : ''}${authLine}\nalways-auth=true\n`,
-    { encoding: 'utf8', mode: 0o600 },
-  );
+  writeFileSync(tempUserConfig, `${prefix}${prefix ? '\n' : ''}${authLine}\nalways-auth=true\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
   process.env.NPM_CONFIG_USERCONFIG = tempUserConfig;
 }
 
