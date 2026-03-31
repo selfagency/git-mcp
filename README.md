@@ -15,6 +15,7 @@ Exposes the full Git workflow to any MCP-compatible AI client — inspect, write
 - **Git Flow** — full branching model (feature/release/hotfix/support) without requiring the `git-flow` CLI
 - **Documentation lookup** — search git-scm.com and fetch man pages directly from the LLM
 - **MCP Resources** — URI-addressable read-only views of status, log, branches, and diff
+- **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for agent users
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
 - **Cross-platform** — macOS, Linux, Windows (Git for Windows)
 
