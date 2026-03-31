@@ -63,6 +63,95 @@ function runGit(args, options = {}) {
   return result;
 }
 
+/**
+ * Run a subprocess attached to the caller's terminal so interactive auth flows
+ * like npm OTP or browser-based login handoffs can complete successfully.
+ *
+ * @param {string} command
+ * @param {string[]} args
+ * @param {import('node:child_process').SpawnSyncOptions} [options]
+ */
+function runInteractive(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: false,
+    env: process.env,
+    ...options,
+  });
+
+  if (result.error) {
+    throw new Error(`${command} ${args.join(' ')} failed to spawn: ${result.error.message}`);
+  }
+
+  if (result.signal) {
+    throw new Error(`${command} ${args.join(' ')} was terminated by signal ${result.signal}`);
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}`);
+  }
+}
+
+function cleanupTempNpmConfig() {
+  if (!tempNpmConfigDir) {
+    return;
+  }
+
+  rmSync(tempNpmConfigDir, { recursive: true, force: true });
+  tempNpmConfigDir = '';
+}
+
+process.on('exit', () => {
+  try {
+    cleanupTempNpmConfig();
+  } catch {
+    // Best-effort cleanup; ignore errors on process exit.
+  }
+});
+
+/**
+ * @param {string} registry
+ */
+function configureNpmAuth(registry) {
+  const defaultUserConfig = resolve(homedir(), '.npmrc');
+  const configuredUserConfig = process.env.NPM_CONFIG_USERCONFIG || defaultUserConfig;
+  process.env.NPM_CONFIG_USERCONFIG = configuredUserConfig;
+
+  const npmToken = process.env.NPM_TOKEN?.trim();
+  if (!npmToken) {
+    return;
+  }
+
+  let existingConfig = '';
+  try {
+    existingConfig = readFileSync(configuredUserConfig, 'utf8');
+  } catch {
+    existingConfig = '';
+  }
+
+  process.env.NODE_AUTH_TOKEN ||= npmToken;
+
+  const normalizedRegistry = registry.replace(/\/+$/, '/');
+  const registryKey = normalizedRegistry.replace(/^https?:/, '');
+
+  if (existingConfig.includes(`${registryKey}:_authToken=`)) {
+    return;
+  }
+
+  const authLine = `${registryKey}:_authToken=${npmToken}`;
+  tempNpmConfigDir = mkdtempSync(resolve(tmpdir(), 'git-mcp-release-'));
+
+  const tempUserConfig = resolve(tempNpmConfigDir, '.npmrc');
+  const prefix = existingConfig.trimEnd();
+  writeFileSync(
+    tempUserConfig,
+    `${prefix}${prefix ? '\n' : ''}${authLine}\nalways-auth=true\n`,
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  process.env.NPM_CONFIG_USERCONFIG = tempUserConfig;
+}
+
 function resolveGitExecutable() {
   const direct = spawnSync('git', ['--version'], { stdio: 'ignore', shell: false });
   if (direct.status === 0) {
@@ -471,6 +560,5 @@ main().catch(async err => {
     console.error(`❌ ${msg}`);
   }
   await rollback();
-  cleanupTempNpmConfig();
   process.exit(err?.exitCode ?? 1);
 });
