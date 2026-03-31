@@ -2,8 +2,8 @@
 
 import { Octokit } from '@octokit/rest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ora from 'ora';
@@ -27,18 +27,25 @@ const tag = `v${version}`;
 
 // ---------------------------------------------------------------------------
 // Rollback state
-//   commitLocal  — release commit exists locally but has not been pushed
-//   commitPushed — release commit has been pushed to origin/main
-//   tagPushed    — tag has been pushed but release workflow has not yet succeeded
-//   releaseDone  — release workflow succeeded; nothing to undo
+//   commitLocal           — release commit exists locally but has not been pushed
+//   commitPushed          — release commit has been pushed to origin/main
+//   tagPushed             — tag has been pushed and should be deleted on failure
+//   releaseWorkflowDone   — GitHub release workflow succeeded for the tag
+//   npmPublishDone        — npm publish succeeded; release is fully complete
 // ---------------------------------------------------------------------------
 
 let commitLocal = false;
 let commitPushed = false;
 let tagPushed = false;
-let releaseDone = false;
+let releaseWorkflowDone = false;
+let npmPublishDone = false;
 let gitCmd = 'git';
+let tempNpmConfigDir = '';
 
+/**
+ * @param {string[]} args
+ * @param {import('node:child_process').SpawnSyncOptions & { cwd?: string, encoding?: BufferEncoding }} [options]
+ */
 function runGit(args, options = {}) {
   const result = spawnSync(gitCmd, args, {
     cwd: ROOT,
@@ -55,6 +62,73 @@ function runGit(args, options = {}) {
   }
 
   return result;
+}
+
+/**
+ * Run a subprocess attached to the caller's terminal so interactive auth flows
+ * like npm OTP or browser-based login handoffs can complete successfully.
+ *
+ * @param {string} command
+ * @param {string[]} args
+ * @param {import('node:child_process').SpawnSyncOptions} [options]
+ */
+function runInteractive(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: false,
+    env: process.env,
+    ...options,
+  });
+
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}`);
+  }
+}
+
+function cleanupTempNpmConfig() {
+  if (!tempNpmConfigDir) {
+    return;
+  }
+
+  rmSync(tempNpmConfigDir, { recursive: true, force: true });
+  tempNpmConfigDir = '';
+}
+
+/**
+ * @param {string} registry
+ */
+function configureNpmAuth(registry) {
+  const defaultUserConfig = resolve(homedir(), '.npmrc');
+  const configuredUserConfig = process.env.NPM_CONFIG_USERCONFIG || defaultUserConfig;
+  process.env.NPM_CONFIG_USERCONFIG = configuredUserConfig;
+
+  const npmToken = process.env.NPM_TOKEN?.trim();
+  if (!npmToken) {
+    return;
+  }
+
+  let existingConfig = '';
+  try {
+    existingConfig = readFileSync(configuredUserConfig, 'utf8');
+  } catch {
+    existingConfig = '';
+  }
+
+  process.env.NODE_AUTH_TOKEN ||= npmToken;
+
+  if (existingConfig.includes('_authToken')) {
+    return;
+  }
+
+  const normalizedRegistry = registry.replace(/\/+$/, '/');
+  const authLine = `${normalizedRegistry.replace(/^https?:/, '')}:_authToken=${npmToken}`;
+  tempNpmConfigDir = mkdtempSync(resolve(tmpdir(), 'git-mcp-release-'));
+
+  const tempUserConfig = resolve(tempNpmConfigDir, '.npmrc');
+  const prefix = existingConfig.trimEnd();
+  writeFileSync(tempUserConfig, `${prefix}${prefix ? '\n' : ''}${authLine}\nalways-auth=true\n`);
+  process.env.NPM_CONFIG_USERCONFIG = tempUserConfig;
 }
 
 function resolveGitExecutable() {
@@ -79,20 +153,37 @@ function resolveGitExecutable() {
 }
 
 async function rollback() {
-  if (releaseDone) {
+  if (npmPublishDone) {
+    cleanupTempNpmConfig();
     return;
   }
   $.verbose = false;
   try {
     if (tagPushed) {
-      console.log(`\n⚠️  Release workflow failed or was interrupted. Deleting remote tag ${tag}...`);
+      console.log(`\n⚠️  Release failed after tagging. Deleting tag ${tag} from origin and local repo...`);
+      let remoteDeleted = false;
+      let localDeleted = false;
+
       try {
         runGit(['push', 'origin', '--delete', tag]);
-        runGit(['tag', '-d', tag]);
-        console.log(`↩️  Tag ${tag} deleted from remote and local.`);
+        remoteDeleted = true;
       } catch {
-        console.error(`❌ Could not delete tag. Manually run:`);
-        console.error(`   git push origin --delete ${tag} && git tag -d ${tag}`);
+        console.error(`❌ Could not delete remote tag ${tag}. Manually run:`);
+        console.error(`   git push origin --delete ${tag}`);
+      }
+
+      try {
+        runGit(['tag', '-d', tag]);
+        localDeleted = true;
+      } catch {
+        console.error(`❌ Could not delete local tag ${tag}. Manually run:`);
+        console.error(`   git tag -d ${tag}`);
+      }
+
+      if (remoteDeleted || localDeleted) {
+        console.log(
+          `↩️  Tag ${tag} rollback complete${releaseWorkflowDone ? ' (GitHub release metadata may still need manual follow-up).' : '.'}`,
+        );
       }
     }
     if (commitPushed) {
@@ -116,6 +207,8 @@ async function rollback() {
     }
   } catch {
     /* best effort */
+  } finally {
+    cleanupTempNpmConfig();
   }
 }
 
@@ -143,8 +236,8 @@ async function main() {
   gitCmd = resolvedGit;
 
   // Ensure npm uses the user's ~/.npmrc (tokens) and the public npm registry.
-  process.env.NPM_CONFIG_USERCONFIG ||= resolve(homedir(), '.npmrc');
   const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org/';
+  configureNpmAuth(NPM_REGISTRY);
 
   // Check npm credentials against the intended registry (non-interactive).
   try {
@@ -345,7 +438,7 @@ async function main() {
     branch: null,
   });
 
-  releaseDone = true;
+  releaseWorkflowDone = true;
   console.log(`✅ GitHub release complete: ${tag} → ${headSha}`);
 
   // --- npm publish ----------------------------------------------------------
@@ -357,13 +450,13 @@ async function main() {
 
   const distTag = version.includes('-') ? 'next' : 'latest';
   console.log(`🚀 Publishing ${tag} to npm (dist-tag: ${distTag})...`);
-  $.verbose = true;
   // For scoped public packages, --access public is required on first publish; harmless on subsequent publishes.
   const accessFlag = (JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')).name || '').startsWith('@')
     ? ['--access', 'public']
     : [];
-  await $`npm publish ./dist --tag ${distTag} --registry=${NPM_REGISTRY} ${accessFlag}`;
-  $.verbose = false;
+  runInteractive('npm', ['publish', './dist', '--tag', distTag, '--registry', NPM_REGISTRY, ...accessFlag]);
+  npmPublishDone = true;
+  cleanupTempNpmConfig();
   console.log(`✅ Published ${tag} to npm.`);
 }
 
@@ -446,5 +539,6 @@ main().catch(async err => {
     console.error(`❌ ${msg}`);
   }
   await rollback();
+  cleanupTempNpmConfig();
   process.exit(err?.exitCode ?? 1);
 });
