@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-03-31
+
+## What's Changed
+
+- fix: improve release auth and rollback by @selfagency in https://github.com/selfagency/git-mcp/pull/3
+
+**Full Changelog**: https://github.com/selfagency/git-mcp/compare/v0.1.1...v0.1.2
+
+_Source: changes from v0.1.1 to v0.1.2._
+
 ## [0.1.1] - 2026-03-31
 
 ## What's Changed
