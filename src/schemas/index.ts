@@ -27,3 +27,38 @@ export const ResponseFormatSchema = z
   .enum(['markdown', 'json'])
   .default('markdown')
   .describe('Output format for the response.');
+
+export const FlowPresetSchema = z
+  .enum(['classic', 'github', 'gitlab'])
+  .default('classic')
+  .describe('git-flow-next preset to initialize.');
+
+export const FlowConfigScopeSchema = z
+  .enum(['local', 'global', 'system', 'file'])
+  .default('local')
+  .describe('Git config scope used for init writes.');
+
+export const FlowBranchKindSchema = z
+  .enum(['base', 'topic'])
+  .describe('Whether a flow config operation targets a base branch or topic branch type.');
+
+export const FlowMergeStrategySchema = z
+  .enum(['merge', 'rebase', 'squash', 'none'])
+  .describe('Merge strategy for flow branch integration.');
+
+export const FlowConfigActionSchema = z
+  .enum(['list', 'add', 'update', 'rename', 'delete'])
+  .describe('Flow configuration operation.');
+
+export const FlowTopicActionSchema = z
+  .enum(['start', 'finish', 'publish', 'list', 'update', 'delete', 'rename', 'checkout', 'track'])
+  .describe('Topic branch lifecycle operation.');
+
+export const FlowControlActionSchema = z
+  .enum(['continue', 'abort'])
+  .describe('Continue or abort an in-progress flow finish operation.');
+
+export const FlowMatchModeSchema = z
+  .enum(['exact', 'prefix'])
+  .default('exact')
+  .describe('How topic names should be resolved for checkout and shorthand operations.');

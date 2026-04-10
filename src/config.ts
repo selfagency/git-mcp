@@ -66,6 +66,17 @@ export const ALLOW_NO_VERIFY: boolean = process.env['GIT_ALLOW_NO_VERIFY'] === '
 export const ALLOW_FORCE_PUSH: boolean = process.env['GIT_ALLOW_FORCE_PUSH'] === 'true';
 
 // ---------------------------------------------------------------------------
+// Flow hook execution
+// ---------------------------------------------------------------------------
+
+/**
+ * When true, git_flow may execute git-flow-next-compatible hook and filter
+ * programs discovered from git config or repository hook locations.
+ * Enable via: GIT_ALLOW_FLOW_HOOKS=true
+ */
+export const ALLOW_FLOW_HOOKS: boolean = process.env['GIT_ALLOW_FLOW_HOOKS'] === 'true';
+
+// ---------------------------------------------------------------------------
 // Commit / tag signing
 // ---------------------------------------------------------------------------
 

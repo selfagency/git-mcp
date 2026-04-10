@@ -91,7 +91,11 @@ Then add targeted inspection as needed.
   - Supports add, list, update, and sync
 - Manage large assets: `git_lfs`
   - Includes tracking, transfer, and migration actions
-- Run the Git Flow model: `git_flow`
+- Run classic or git-flow-next-style workflows: `git_flow`
+  - Use `action: "overview"` or `"config-list"` before mutating flow-heavy repos
+  - Prefer `operation: "config" | "topic" | "control"` for new integrations
+  - Use `topic_action` for start, finish, publish, list, update, delete, rename, checkout, and track on configured topic types
+  - Use `control_action: "continue" | "abort"` when a finish flow pauses on conflicts
   - Supports feature, release, hotfix, and support workflows
 
 ## Recovery mapping

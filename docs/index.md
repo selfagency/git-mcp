@@ -25,7 +25,7 @@ features:
     details: Stage, commit, reset, and revert with built-in safety guardrails. Hard reset requires explicit confirmation; force push is opt-in.
   - icon: 🌿
     title: Branch Workflows
-    details: Create, delete, rename, checkout, and track branches. Full Git Flow support without requiring the git-flow CLI.
+    details: Create, delete, rename, checkout, and track branches. Includes git-flow-next-style presets, config graphs, recovery flows, and classic alias compatibility without requiring an external git-flow binary.
   - icon: 🔗
     title: Remote Operations
     details: Fetch, pull, and push — including force-with-lease for safer force pushes. Remote management built in.

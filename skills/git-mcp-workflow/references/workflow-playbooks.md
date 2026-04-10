@@ -216,12 +216,49 @@ Prefer for scheduled releases and release branches.
 Use:
 
 - `git_flow` with `action: "init"`
+- `git_flow` with `action: "overview"` to inspect the configured flow graph first
 - `git_flow` with `action: "feature-start"` and `name` set for the feature branch
 - `git_flow` with `action: "feature-finish"` and `name` set for the feature branch
 - `git_flow` with `action: "release-start"` and `name` set for the release version
 - `git_flow` with `action: "release-finish"` and `name` set for the release version
 - `git_flow` with `action: "hotfix-start"` and `name` set for the hotfix version
 - `git_flow` with `action: "hotfix-finish"` and `name` set for the hotfix version
+
+### git-flow-next-style preset workflows
+
+Use when the repository relies on configured branch graphs instead of only the classic hardcoded branch families.
+
+Use:
+
+- `git_flow` with `action: "init"` and `preset: "classic" | "github" | "gitlab"`
+- `git_flow` with `action: "overview"` or `"config-list"` before mutating the workflow
+- `git_flow` with `operation: "config"` and `config_action` to add, update, rename, or delete base/topic branch definitions
+- `git_flow` with `operation: "topic"`, `topic_action: "start"`, `topic`, and `name` to create branches from configured topic types
+- `git_flow` with `operation: "topic"`, `topic_action: "list"`, and `topic` to inspect active branches for a topic type
+- `git_flow` with `operation: "topic"`, `topic_action: "publish"`, `topic`, and `name` to publish a configured topic branch
+
+### git_flow finish recovery
+
+Use when a finish sequence pauses on merge conflicts or another recoverable integration problem.
+
+Use:
+
+- `git_flow` with `operation: "topic"`, `topic_action: "finish"`, and `topic`
+- Resolve conflicts in the repository worktree
+- `git_flow` with `operation: "control"`, `control_action: "continue"` to resume
+- `git_flow` with `operation: "control"`, `control_action: "abort"` to unwind the in-progress finish state
+
+### Hook-aware flow execution
+
+Use when the repository depends on git-flow-next-compatible hooks or filters.
+
+Use:
+
+- `GIT_ALLOW_FLOW_HOOKS=true` only when the repository hooks are trusted
+- `git_flow` overview/config inspection before any mutating flow action
+- normal `operation: "topic"` and `operation: "control"` requests after the gate is enabled
+
+By default, hook/filter execution stays disabled and responses report skipped execution instead of running repository programs.
 
 ### Trunk-based development
 

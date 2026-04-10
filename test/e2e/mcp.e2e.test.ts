@@ -178,6 +178,41 @@ describe('MCP server E2E - tools/list', () => {
     expect(names).toContain('git_stash');
     expect(names).toContain('git_fetch');
     expect(names).toContain('git_context_summary');
+    expect(names).toContain('git_flow');
+  });
+});
+
+describe('MCP server E2E - git_flow', () => {
+  it('executes a git_flow overview request end-to-end', async () => {
+    const id = nextId();
+    writeRequest(server, {
+      jsonrpc: '2.0',
+      id,
+      method: 'tools/call',
+      params: {
+        name: 'git_flow',
+        arguments: {
+          repo_path: process.cwd(),
+          action: 'overview',
+          response_format: 'json',
+          tag: true,
+          delete_branch: true,
+          force: false,
+          no_create_branches: false,
+          no_backmerge: false,
+        },
+      },
+    });
+
+    const response = await waitForResponse(server, id);
+    expect(response.error).toBeUndefined();
+    const result = response.result as {
+      content: Array<{ type: string; text: string }>;
+      structuredContent: { initialized: boolean; compatibility: string };
+    };
+
+    expect(result.content[0].type).toBe('text');
+    expect(result.structuredContent).toHaveProperty('compatibility');
   });
 });
 
