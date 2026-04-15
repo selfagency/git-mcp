@@ -2,18 +2,19 @@
 title: Tool Reference
 ---
 
-git-mcp provides 30+ tools organized by function. Every tool accepts a `repo_path` parameter (the absolute path to the Git repository) unless noted otherwise. When `GIT_REPO_PATH` is configured server-side, `repo_path` is optional.
+git-mcp provides grouped root tools with action-based subtools. Every tool accepts a `repo_path` parameter (the absolute path to the Git repository) unless noted otherwise. When `GIT_REPO_PATH` is configured server-side, `repo_path` is optional.
 
 All tools accept a `response_format` parameter: `"markdown"` (default, human-readable) or `"json"` (machine-friendly structured data).
 
 ## Tool Groups
 
-- [Inspect](/tools/inspect) — `git_status`, `git_log`, `git_show`, `git_diff`, `git_blame`, `git_reflog`: read-only repository inspection.
-- [Write](/tools/write) — `git_add`, `git_restore`, `git_commit`, `git_reset`, `git_revert`: stage, commit, and undo changes.
-- [Branch](/tools/branch) — `git_list_branches`, `git_create_branch`, `git_delete_branch`, `git_rename_branch`, `git_checkout`, `git_set_upstream`: branch lifecycle management.
-- [Remote](/tools/remote) — `git_list_remotes`, `git_remote`, `git_fetch`, `git_pull`, `git_push`: remote and transport operations.
-- [Advanced](/tools/advanced) — `git_stash`, `git_rebase`, `git_cherry_pick`, `git_bisect`, `git_tag`, `git_worktree`, `git_submodule`: stash, rebase, tags, worktrees, and submodules.
-- [Context](/tools/context) — `git_context_summary`, `git_search`, `git_get_config`, `git_set_config`: repository context and configuration.
+- [Status](/tools/status) — `git_status` with actions `status`, `diff`, `diff_main`.
+- [History](/tools/history) — `git_history` with actions `log`, `show`, `blame`, `reflog`, `lg`, `who`.
+- [Commits](/tools/commits) — `git_commits` with actions `add`, `restore`, `commit`, `reset`, `revert`, `undo`, `nuke`, `wip`, `unstage`, `amend`.
+- [Branches](/tools/branches) — `git_branches` with actions `list`, `create`, `delete`, `rename`, `checkout`, `set_upstream`, `recent`.
+- [Remotes](/tools/remotes) — `git_remotes` with actions `list`, `manage`, `fetch`, `pull`, `push`.
+- [Workspace](/tools/workspace) — `git_workspace` with actions `stash`, `stash_all`, `rebase`, `cherry_pick`, `bisect`, `tag`, `worktree`, `submodule`.
+- [Context](/tools/context) — `git_context` with actions `summary`, `search`, `get_config`, `set_config`, `aliases`.
 - [LFS](/tools/lfs) — `git_lfs`: Git Large File Storage.
 - [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.
 - [Docs](/tools/docs) — `git_docs`: Git documentation search.
@@ -29,67 +30,47 @@ These parameters are shared across most tools:
 
 ## Quick Reference
 
-### Inspect tools
+### Status
 
 ```text
-git_status    repo_path
-git_log       repo_path  [limit] [offset] [author] [grep] [since] [until] [file_path]
-git_show      repo_path  ref
-git_diff      repo_path  [mode] [from_ref] [to_ref] [filtered]
-git_blame     repo_path  file_path  [ref]
-git_reflog    repo_path  [limit]
+git_status    repo_path  [action=status|diff|diff_main] [mode] [from_ref] [to_ref] [filtered] [base_branch]
 ```
 
-### Write tools
+### History
 
 ```text
-git_add       repo_path  [all] [paths]
-git_restore   repo_path  paths  [staged] [worktree] [source]
-git_commit    repo_path  message  [all] [amend] [no_edit] [sign] [signing_key] [no_verify]
-git_reset     repo_path  [mode] [target] [paths] [confirm]
-git_revert    repo_path  ref  [no_commit] [mainline]
+git_history   repo_path  [action=log|show|blame|reflog|lg|who] [limit] [offset] [author] [grep] [since] [until] [file_path] [ref]
 ```
 
-### Branch tools
+### Commits
 
 ```text
-git_list_branches   repo_path  [all]
-git_create_branch   repo_path  name  [from_ref] [checkout]
-git_delete_branch   repo_path  name  [force]
-git_rename_branch   repo_path  old_name  new_name
-git_checkout        repo_path  ref  [create]
-git_set_upstream    repo_path  branch  upstream
+git_commits   repo_path  [action=add|restore|commit|reset|revert|undo|nuke|wip|unstage|amend] [all] [paths] [message] [mode] [target] [confirm] [ref]
 ```
 
-### Remote tools
+### Branches
 
 ```text
-git_list_remotes  repo_path
-git_remote        repo_path  action  name  [url]
-git_fetch         repo_path  [remote] [branch] [prune]
-git_pull          repo_path  [remote] [branch] [rebase]
-git_push          repo_path  [remote] [branch] [set_upstream] [force_with_lease] [force] [no_verify] [tags]
+git_branches  repo_path  [action=list|create|delete|rename|checkout|set_upstream|recent] [name] [old_name] [new_name] [ref] [from_ref] [branch] [upstream] [count]
 ```
 
-### Advanced tools
+### Remotes
 
 ```text
-git_stash        repo_path  action  [message] [index] [include_untracked]
-git_rebase       repo_path  action  [onto]
-git_cherry_pick  repo_path  action  [ref]
-git_bisect       repo_path  action  [ref] [good_ref] [bad_ref] [command]
-git_tag          repo_path  action  [name] [target] [message] [sign] [signing_key]
-git_worktree     repo_path  action  [path] [branch]
-git_submodule    repo_path  action  [url] [path] [recursive]
+git_remotes   repo_path  [action=list|manage|fetch|pull|push] [remote_action] [name] [url] [remote] [branch] [prune] [rebase] [set_upstream] [force_with_lease] [force] [no_verify] [tags]
 ```
 
-### Context & config tools
+### Workspace
 
 ```text
-git_context_summary  repo_path
-git_search           repo_path  query  [limit]
-git_get_config       repo_path  [key]
-git_set_config       repo_path  key  value
+git_workspace repo_path [action=stash|stash_all|rebase|cherry_pick|bisect|tag|worktree|submodule] [stash_action] [rebase_action] [cherry_pick_action] [bisect_action] [tag_action] [worktree_action] [submodule_action]
+              [message] [index] [include_untracked] [ref] [onto] [good_ref] [bad_ref] [command] [name] [target] [sign] [signing_key] [path] [branch] [url] [recursive]
+```
+
+### Context
+
+```text
+git_context   repo_path  [action=summary|search|get_config|set_config|aliases] [query] [limit] [key] [value]
 ```
 
 ### LFS tool

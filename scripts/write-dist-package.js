@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, writeFile } from 'fs/promises';
+import { copyFile, cp, mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -24,7 +24,7 @@ async function main() {
     type: 'module',
     main: './index.js',
     types: './index.d.ts',
-    files: ['./index.js', './index.js.map', './index.d.ts'],
+    files: ['./index.js', './index.js.map', './index.d.ts', './skills'],
     bin: {
       'git-mcp': './index.js',
     },
@@ -40,6 +40,15 @@ async function main() {
   await mkdir(outDir, { recursive: true });
   await writeFile(resolve(outDir, 'package.json'), JSON.stringify(distPkg, null, 2) + '\n', 'utf8');
   console.log('Wrote', resolve(outDir, 'package.json'));
+
+  const skillsSrc = resolve(__dirname, '..', 'skills');
+  const skillsDest = resolve(outDir, 'skills');
+  try {
+    await cp(skillsSrc, skillsDest, { recursive: true });
+    console.log('Copied', skillsSrc, 'to', skillsDest);
+  } catch {
+    console.warn('No skills/ directory found; skipping copy.');
+  }
 
   const readmeSrc = resolve(__dirname, '..', 'README.md');
   const readmeDest = resolve(outDir, 'README.md');

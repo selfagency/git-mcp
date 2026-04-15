@@ -1,9 +1,8 @@
 {
   "servers": {
     "git": {
-      "command": "npx",
+      "command": "pnpx",
       "args": [
-        "-y",
         "@selfagency/git-mcp",
         "--repo-path",
         "${workspaceFolder}"

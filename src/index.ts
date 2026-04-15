@@ -13,27 +13,17 @@ import {
 } from './config.js';
 import { SERVER_NAME, SERVER_VERSION } from './constants.js';
 import { registerGitResources } from './resources/git.resources.js';
-import { registerAdvancedTools } from './tools/advanced.tools.js';
-import { registerBranchTools } from './tools/branch.tools.js';
-import { registerContextTools } from './tools/context.tools.js';
 import { registerDocsTools } from './tools/docs.tools.js';
 import { registerFlowTools } from './tools/flow.tools.js';
-import { registerInspectTools } from './tools/inspect.tools.js';
+import { registerGroupedTools } from './tools/grouped.tools.js';
 import { registerLfsTools } from './tools/lfs.tools.js';
-import { registerRemoteTools } from './tools/remote.tools.js';
-import { registerWriteTools } from './tools/write.tools.js';
 
 const server = new McpServer({
   name: SERVER_NAME,
   version: SERVER_VERSION,
 });
 
-registerInspectTools(server);
-registerWriteTools(server);
-registerBranchTools(server);
-registerRemoteTools(server);
-registerAdvancedTools(server);
-registerContextTools(server);
+registerGroupedTools(server);
 registerLfsTools(server);
 registerFlowTools(server);
 registerDocsTools(server);

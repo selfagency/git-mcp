@@ -171,13 +171,12 @@ describe('MCP server E2E - tools/list', () => {
     const names = result.tools.map((t: { name: string }) => t.name);
     expect(names).toContain('git_ping');
     expect(names).toContain('git_status');
-    expect(names).toContain('git_log');
-    expect(names).toContain('git_commit');
-    expect(names).toContain('git_list_branches');
-    expect(names).toContain('git_tag');
-    expect(names).toContain('git_stash');
-    expect(names).toContain('git_fetch');
-    expect(names).toContain('git_context_summary');
+    expect(names).toContain('git_history');
+    expect(names).toContain('git_commits');
+    expect(names).toContain('git_branches');
+    expect(names).toContain('git_workspace');
+    expect(names).toContain('git_remotes');
+    expect(names).toContain('git_context');
     expect(names).toContain('git_flow');
   });
 });
@@ -245,7 +244,11 @@ describe('MCP server E2E - error handling', () => {
       method: 'tools/call',
       params: {
         name: 'git_status',
-        arguments: { repo_path: '/absolutely/nonexistent/repo/__test__', response_format: 'json' },
+        arguments: {
+          repo_path: '/absolutely/nonexistent/repo/__test__',
+          action: 'status',
+          response_format: 'json',
+        },
       },
     });
 
