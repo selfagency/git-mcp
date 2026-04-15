@@ -8,14 +8,14 @@ Exposes the full Git workflow to any MCP-compatible AI client — inspect, write
 
 ## Features
 
-- **30+ tools** covering everyday Git workflows and advanced recovery operations
+- **11 grouped tools with 60+ actions** covering everyday Git workflows and advanced recovery operations
 - **Safety-first** — destructive operations require explicit confirmation; force push and hook bypass are opt-in via server config
 - **GPG/SSH signing** for commits and tags, with server-level auto-sign support
 - **Git LFS** — track patterns, manage objects, install hooks, migrate history
 - **Git Flow** — git-flow-next-style workflow support with preset init, overview, config CRUD, generalized topic actions, finish recovery, optional hook/filter parity, and classic feature/release/hotfix/support aliases, without requiring the external CLI
 - **Documentation lookup** — search git-scm.com and fetch man pages directly from the LLM
 - **MCP Resources** — URI-addressable read-only views of status, log, branches, and diff
-- **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for agent users
+- **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for agent users; installable via [`skills-npm`](https://github.com/antfu/skills-npm)
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
 - **Cross-platform** — macOS, Linux, Windows (Git for Windows)
 
@@ -87,83 +87,124 @@ All configuration is via environment variables. Pass them in your MCP client con
 
 ## Tool Reference
 
-### Inspect (read-only)
+Tools are grouped by domain. Each root tool takes an `action` parameter that selects the operation. Where an action is marked as default, omitting `action` will use it.
 
-| Tool         | Description                                |
-| ------------ | ------------------------------------------ |
-| `git_status` | Working tree and branch status             |
-| `git_log`    | Commit history with filters and pagination |
-| `git_show`   | Patch and metadata for any ref             |
-| `git_diff`   | Unstaged, staged, or ref-to-ref diff       |
-| `git_blame`  | Line-level author attribution              |
-| `git_reflog` | HEAD movement history for recovery         |
+### Context (`git_context`)
 
-### Write
+| Action       | Description                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------- |
+| `summary`    | _(default)_ Full repo snapshot: branch, upstream, pending changes, in-progress operations |
+| `search`     | Search commit history and working tree content                                            |
+| `get_config` | Read a Git config value                                                                   |
+| `set_config` | Write a Git config value                                                                  |
+| `aliases`    | List all configured git aliases                                                           |
 
-| Tool          | Description                              |
-| ------------- | ---------------------------------------- |
-| `git_add`     | Stage files                              |
-| `git_restore` | Restore paths from index or a source ref |
-| `git_commit`  | Create commits (amend, sign, no-verify)  |
-| `git_reset`   | Soft/mixed/hard reset                    |
-| `git_revert`  | Safe undo via revert commit              |
+### Status (`git_status`)
 
-### Branches
+| Action      | Description                                                                  |
+| ----------- | ---------------------------------------------------------------------------- |
+| `status`    | _(default)_ Working tree and branch status                                   |
+| `diff`      | Unstaged, staged, or ref-to-ref diff                                         |
+| `diff_main` | Changes from branch divergence point vs `main` (or configurable base branch) |
 
-| Tool                | Description                      |
-| ------------------- | -------------------------------- |
-| `git_list_branches` | List local or all branches       |
-| `git_create_branch` | Create branch from HEAD or ref   |
-| `git_delete_branch` | Delete a local branch            |
-| `git_rename_branch` | Rename a branch                  |
-| `git_checkout`      | Switch to branch, tag, or commit |
-| `git_set_upstream`  | Set upstream tracking            |
+### History (`git_history`)
 
-### Remote
+| Action   | Description                                                                       |
+| -------- | --------------------------------------------------------------------------------- |
+| `log`    | _(default)_ Commit log with filtering, pagination, revision ranges, and pathspecs |
+| `show`   | Inspect a single commit                                                           |
+| `blame`  | Line-by-line attribution for a file                                               |
+| `reflog` | Full reflog — the recovery ledger                                                 |
+| `lg`     | Compact graph log (`--oneline --graph --decorate --all`)                          |
+| `who`    | Contributor shortlog (supports optional `file_path`)                              |
 
-| Tool         | Description                               |
-| ------------ | ----------------------------------------- |
-| `git_remote` | Add, remove, or set-url for a remote      |
-| `git_fetch`  | Fetch with optional pruning               |
-| `git_pull`   | Pull with merge or rebase                 |
-| `git_push`   | Push (force-with-lease, force, no-verify) |
+### Commits (`git_commits`)
 
-### Advanced
+| Action    | Description                                             |
+| --------- | ------------------------------------------------------- |
+| `add`     | Stage files or hunks                                    |
+| `restore` | Discard working tree changes                            |
+| `unstage` | Remove files from the staging area                      |
+| `commit`  | Create a commit with message, signing, and author flags |
+| `amend`   | Amend the last commit without editing the message       |
+| `wip`     | Stage all changes and commit with message `WIP`         |
+| `revert`  | Create a revert commit for a given ref                  |
+| `undo`    | Soft-reset the last commit (`reset --soft HEAD~1`)      |
+| `reset`   | Reset HEAD with configurable mode (soft/mixed/hard)     |
+| `nuke`    | Hard-reset the last commit — requires `confirm=true`    |
 
-| Tool              | Description                                 |
-| ----------------- | ------------------------------------------- |
-| `git_stash`       | Save, list, apply, pop, or drop stashes     |
-| `git_rebase`      | Start, continue, skip, or abort rebase      |
-| `git_cherry_pick` | Start, continue, or abort cherry-pick       |
-| `git_bisect`      | Binary search to find regressions           |
-| `git_tag`         | List, create, or delete tags (with signing) |
-| `git_worktree`    | Add, list, or remove worktrees              |
-| `git_submodule`   | Add, list, update, or sync submodules       |
+### Branches (`git_branches`)
 
-### Context & Config
+| Action         | Description                                 |
+| -------------- | ------------------------------------------- |
+| `list`         | _(default)_ Local and remote branch listing |
+| `create`       | Create a branch                             |
+| `delete`       | Delete a branch                             |
+| `rename`       | Rename a branch                             |
+| `checkout`     | Switch to a branch or ref                   |
+| `set_upstream` | Set or update tracking upstream             |
+| `recent`       | Recent branches sorted by committer date    |
 
-| Tool                  | Description                                |
-| --------------------- | ------------------------------------------ |
-| `git_context_summary` | High-signal repo summary for LLM workflows |
-| `git_search`          | Pickaxe + grep across history              |
-| `git_get_config`      | Read git config values                     |
-| `git_set_config`      | Write repository-local git config          |
+### Remotes (`git_remotes`)
 
-### LFS
+| Action   | Description                                    |
+| -------- | ---------------------------------------------- |
+| `list`   | _(default)_ List configured remotes            |
+| `manage` | Add, remove, or rename a remote                |
+| `fetch`  | Fetch from a remote                            |
+| `pull`   | Pull (fetch + merge/rebase)                    |
+| `push`   | Push to a remote; `force_with_lease` supported |
 
-| Tool      | Description                                               |
-| --------- | --------------------------------------------------------- |
-| `git_lfs` | Track patterns, pull/push objects, install hooks, migrate |
+### Workspace (`git_workspace`)
 
-### Git Flow
+| Action        | Description                                                   |
+| ------------- | ------------------------------------------------------------- |
+| `stash`       | Stash and pop/apply/drop/list/show stash entries              |
+| `stash_all`   | Stash tracked and untracked changes in one operation          |
+| `rebase`      | Start, continue, abort, or skip a rebase                      |
+| `cherry_pick` | Apply one or more commits; supports continue/abort/skip       |
+| `merge`       | Merge branches with full flag control                         |
+| `bisect`      | Binary search for a regression (start, good, bad, reset, log) |
+| `tag`         | Create, list, delete, or push tags; supports GPG/SSH signing  |
+| `worktree`    | Add, list, remove, or prune linked worktrees                  |
+| `submodule`   | Add, update, sync, init, deinit, and list submodules          |
 
-- `git_flow` — preset init, overview, config CRUD, generalized topic workflows, finish recovery, optional hook/filter execution, and classic Git Flow aliases
+### Git Flow (`git_flow`)
 
-### Documentation
+Preset git-flow-next workflow without requiring the external CLI.
 
-| Tool       | Description                           |
-| ---------- | ------------------------------------- |
-| `git_docs` | Search git-scm.com or fetch man pages |
+| Operation  | Description                                                     |
+| ---------- | --------------------------------------------------------------- |
+| `init`     | Initialize a repository with git-flow branch conventions        |
+| `overview` | Show the current flow state and active branches                 |
+| `config`   | Read or write git-flow configuration values                     |
+| `topic`    | Generalized topic branch action (start, finish, publish, track) |
+| `control`  | Flow control: resume interrupted finish, abort, or recover      |
+
+### LFS (`git_lfs`)
+
+| Action           | Description                                |
+| ---------------- | ------------------------------------------ |
+| `track`          | Add a tracking pattern to `.gitattributes` |
+| `untrack`        | Remove a tracking pattern                  |
+| `ls-files`       | List tracked LFS files                     |
+| `status`         | Show LFS status                            |
+| `pull`           | Pull LFS objects                           |
+| `push`           | Push LFS objects                           |
+| `install`        | Install LFS hooks in the repository        |
+| `migrate-import` | Migrate existing history to LFS            |
+| `migrate-export` | Migrate LFS history back to plain objects  |
+
+### Documentation (`git_docs`)
+
+| Action   | Description                          |
+| -------- | ------------------------------------ |
+| `search` | Search git-scm.com for documentation |
+| `man`    | Fetch and return a Git man page      |
+
+### Health Check (`git_ping`)
+
+Returns server status. Useful for confirming the server is reachable.
 
 ---
 
@@ -177,6 +218,57 @@ URI-addressable read-only snapshots (subscribe-capable):
 | `git+repo://log/{repo_path}`      | Recent commit log (JSON)      |
 | `git+repo://branches/{repo_path}` | Branch list (JSON)            |
 | `git+repo://diff/{repo_path}`     | Unstaged + staged diff (JSON) |
+
+---
+
+## Bundled Agent Skill
+
+git-mcp ships a bundled agent skill at `skills/git-mcp-workflow/` that teaches any `skills-npm`-compatible agent to use the MCP tool surface instead of running raw `git` CLI commands. The skill covers:
+
+- Why LLMs must not use the Git CLI (quoting hazards, silent failures)
+- Inspect-before-mutate workflow rules
+- Safety order for undo and recovery operations
+- Full registered tool surface with action reference
+- Workflow playbooks: feature branch, rebase, recovery, worktree, backport, release tagging, Git Flow, merge
+- Git concept explanations anchored to MCP tools
+
+### Installing the skill
+
+If your agent supports [skills-npm](https://github.com/antfu/skills-npm):
+
+```bash
+npm install @selfagency/git-mcp   # or pnpm/yarn
+npx skills-npm
+```
+
+Or add to your project's `package.json` so it runs automatically:
+
+```json
+{
+  "scripts": {
+    "prepare": "skills-npm"
+  }
+}
+```
+
+Then add to `.gitignore`:
+
+```txt
+skills/npm-*
+```
+
+---
+
+## Safety
+
+- All mutating tools have `destructiveHint: true` in their MCP annotations
+- `git_commits action=reset mode=hard` requires `confirm=true`
+- `git_commits action=nuke` requires `confirm=true`
+- Force push (`--force`) is disabled unless `GIT_ALLOW_FORCE_PUSH=true`; `force_with_lease` is always available
+- Hook bypass (`--no-verify`) is disabled unless `GIT_ALLOW_NO_VERIFY=true`
+- `git_flow` hook and filter execution is disabled unless `GIT_ALLOW_FLOW_HOOKS=true`
+- Paths are validated against the repository root — traversal attempts are rejected
+- Credentials and tokens are never included in responses
 
 ---
 
@@ -209,18 +301,6 @@ pnpm docs:dev
 # Docs (build)
 pnpm docs:build
 ```
-
----
-
-## Safety
-
-- All mutating tools have `destructiveHint: true` in their MCP annotations
-- `git_reset --hard` requires `confirm=true`
-- Force push (`--force`) is disabled unless `GIT_ALLOW_FORCE_PUSH=true`
-- Hook bypass (`--no-verify`) is disabled unless `GIT_ALLOW_NO_VERIFY=true`
-- `git_flow` hook and filter execution is disabled unless `GIT_ALLOW_FLOW_HOOKS=true`
-- Paths are validated against the repository root — traversal attempts are rejected
-- Credentials and tokens are never included in responses
 
 ---
 
