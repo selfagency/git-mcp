@@ -12,7 +12,7 @@ Exposes the full Git workflow to any MCP-compatible AI client — inspect, write
 - **Safety-first** — destructive operations require explicit confirmation; force push and hook bypass are opt-in via server config
 - **GPG/SSH signing** for commits and tags, with server-level auto-sign support
 - **Git LFS** — track patterns, manage objects, install hooks, migrate history
-- **Git Flow** — full branching model (feature/release/hotfix/support) without requiring the `git-flow` CLI
+- **Git Flow** — git-flow-next-style workflow support with preset init, overview, config CRUD, generalized topic actions, finish recovery, optional hook/filter parity, and classic feature/release/hotfix/support aliases, without requiring the external CLI
 - **Documentation lookup** — search git-scm.com and fetch man pages directly from the LLM
 - **MCP Resources** — URI-addressable read-only views of status, log, branches, and diff
 - **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for agent users
@@ -77,6 +77,7 @@ All configuration is via environment variables. Pass them in your MCP client con
 | `GIT_REPO_PATH`         | —       | Default repository path (also: `--repo-path` CLI arg) |
 | `GIT_ALLOW_NO_VERIFY`   | `false` | Allow `--no-verify` on commit/push (bypasses hooks)   |
 | `GIT_ALLOW_FORCE_PUSH`  | `false` | Allow `--force` on push                               |
+| `GIT_ALLOW_FLOW_HOOKS`  | `false` | Allow `git_flow` hooks and filters to execute         |
 | `GIT_AUTO_SIGN_COMMITS` | `false` | Automatically sign every commit                       |
 | `GIT_AUTO_SIGN_TAGS`    | `false` | Automatically sign every tag                          |
 | `GIT_SIGNING_KEY`       | —       | Default GPG key ID or SSH key path                    |
@@ -156,9 +157,7 @@ All configuration is via environment variables. Pass them in your MCP client con
 
 ### Git Flow
 
-| Tool       | Description                                       |
-| ---------- | ------------------------------------------------- |
-| `git_flow` | Init, feature, release, hotfix, support workflows |
+- `git_flow` — preset init, overview, config CRUD, generalized topic workflows, finish recovery, optional hook/filter execution, and classic Git Flow aliases
 
 ### Documentation
 
@@ -219,6 +218,7 @@ pnpm docs:build
 - `git_reset --hard` requires `confirm=true`
 - Force push (`--force`) is disabled unless `GIT_ALLOW_FORCE_PUSH=true`
 - Hook bypass (`--no-verify`) is disabled unless `GIT_ALLOW_NO_VERIFY=true`
+- `git_flow` hook and filter execution is disabled unless `GIT_ALLOW_FLOW_HOOKS=true`
 - Paths are validated against the repository root — traversal attempts are rejected
 - Credentials and tokens are never included in responses
 

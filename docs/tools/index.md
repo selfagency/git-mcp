@@ -8,17 +8,15 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 
 ## Tool Groups
 
-| Group                       | Tools                                                                                                                  | Description                                |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| [Inspect](/tools/inspect)   | `git_status`, `git_log`, `git_show`, `git_diff`, `git_blame`, `git_reflog`                                             | Read-only repository inspection            |
-| [Write](/tools/write)       | `git_add`, `git_restore`, `git_commit`, `git_reset`, `git_revert`                                                      | Stage, commit, and undo changes            |
-| [Branch](/tools/branch)     | `git_list_branches`, `git_create_branch`, `git_delete_branch`, `git_rename_branch`, `git_checkout`, `git_set_upstream` | Branch lifecycle management                |
-| [Remote](/tools/remote)     | `git_list_remotes`, `git_remote`, `git_fetch`, `git_pull`, `git_push`                                                  | Remote and transport operations            |
-| [Advanced](/tools/advanced) | `git_stash`, `git_rebase`, `git_cherry_pick`, `git_bisect`, `git_tag`, `git_worktree`, `git_submodule`                 | Stash, rebase, tags, worktrees, submodules |
-| [Context](/tools/context)   | `git_context_summary`, `git_search`, `git_get_config`, `git_set_config`                                                | Repository context and configuration       |
-| [LFS](/tools/lfs)           | `git_lfs`                                                                                                              | Git Large File Storage                     |
-| [Git Flow](/tools/flow)     | `git_flow`                                                                                                             | Gitflow branching model workflows          |
-| [Docs](/tools/docs)         | `git_docs`                                                                                                             | Git documentation search                   |
+- [Inspect](/tools/inspect) — `git_status`, `git_log`, `git_show`, `git_diff`, `git_blame`, `git_reflog`: read-only repository inspection.
+- [Write](/tools/write) — `git_add`, `git_restore`, `git_commit`, `git_reset`, `git_revert`: stage, commit, and undo changes.
+- [Branch](/tools/branch) — `git_list_branches`, `git_create_branch`, `git_delete_branch`, `git_rename_branch`, `git_checkout`, `git_set_upstream`: branch lifecycle management.
+- [Remote](/tools/remote) — `git_list_remotes`, `git_remote`, `git_fetch`, `git_pull`, `git_push`: remote and transport operations.
+- [Advanced](/tools/advanced) — `git_stash`, `git_rebase`, `git_cherry_pick`, `git_bisect`, `git_tag`, `git_worktree`, `git_submodule`: stash, rebase, tags, worktrees, and submodules.
+- [Context](/tools/context) — `git_context_summary`, `git_search`, `git_get_config`, `git_set_config`: repository context and configuration.
+- [LFS](/tools/lfs) — `git_lfs`: Git Large File Storage.
+- [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.
+- [Docs](/tools/docs) — `git_docs`: Git documentation search.
 
 ## Common Parameters
 
@@ -103,7 +101,7 @@ git_lfs  repo_path  action  [patterns] [remote] [include] [exclude] [everything]
 ### Git Flow tool
 
 ```text
-git_flow  repo_path  action  [name] [main_branch] [develop_branch] [remote] [tag] [tag_message] [delete_branch]
+git_flow  repo_path  [action] [operation] [config_action] [topic_action] [control_action] [topic] [name] [new_name] [pattern] [match_mode] [branch_kind] [parent] [prefix] [start_point] [base_ref] [preset] [scope] [config_file] [force] [no_create_branches] [main_branch] [develop_branch] [staging_branch] [production_branch] [remote] [upstream_strategy] [downstream_strategy] [strategy] [fetch] [ff] [keep_branch] [no_backmerge] [rebase_before_finish] [preserve_merges] [publish] [force_delete] [auto_update] [tag] [tag_prefix] [tag_message] [delete_branch]
 ```
 
 ### Docs tool (no repo_path)

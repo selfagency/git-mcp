@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import {
   ALLOW_FORCE_PUSH,
+  ALLOW_FLOW_HOOKS,
   ALLOW_NO_VERIFY,
   AUTO_SIGN_COMMITS,
   AUTO_SIGN_TAGS,
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   }
   if (ALLOW_NO_VERIFY) console.error('[git-mcp] hook bypass enabled (GIT_ALLOW_NO_VERIFY=true)');
   if (ALLOW_FORCE_PUSH) console.error('[git-mcp] force push enabled (GIT_ALLOW_FORCE_PUSH=true)');
+  if (ALLOW_FLOW_HOOKS) console.error('[git-mcp] git_flow hooks/filters enabled (GIT_ALLOW_FLOW_HOOKS=true)');
   if (AUTO_SIGN_COMMITS) console.error('[git-mcp] auto-signing commits (GIT_AUTO_SIGN_COMMITS=true)');
   if (AUTO_SIGN_TAGS) console.error('[git-mcp] auto-signing tags (GIT_AUTO_SIGN_TAGS=true)');
   if (DEFAULT_SIGNING_KEY) console.error(`[git-mcp] signing key: ${DEFAULT_SIGNING_KEY}`);

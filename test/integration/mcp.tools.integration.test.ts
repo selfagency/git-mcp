@@ -62,6 +62,7 @@ vi.mock('../../src/git/client.js', () => ({
 import { registerAdvancedTools } from '../../src/tools/advanced.tools.js';
 import { registerBranchTools } from '../../src/tools/branch.tools.js';
 import { registerContextTools } from '../../src/tools/context.tools.js';
+import { registerFlowTools } from '../../src/tools/flow.tools.js';
 import { registerInspectTools } from '../../src/tools/inspect.tools.js';
 import { registerRemoteTools } from '../../src/tools/remote.tools.js';
 import { registerWriteTools } from '../../src/tools/write.tools.js';
@@ -77,6 +78,7 @@ function createTestServer() {
   registerRemoteTools(server);
   registerAdvancedTools(server);
   registerContextTools(server);
+  registerFlowTools(server);
   return server;
 }
 
@@ -282,5 +284,85 @@ describe('git_context_summary tool', () => {
     });
     expect(result.content[0].type).toBe('text');
     expect(result).toHaveProperty('structuredContent');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// git_flow
+// ---------------------------------------------------------------------------
+describe('git_flow tool', () => {
+  it('returns overview data', async () => {
+    mockGit.raw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'config' && args[1] === '--get-regexp') {
+        return [
+          'gitflow.version 1.0',
+          'gitflow.initialized true',
+          'gitflow.branch.main.type base',
+          'gitflow.branch.feature.type topic',
+          'gitflow.branch.feature.parent main',
+          'gitflow.branch.feature.prefix feature/',
+        ].join('\n');
+      }
+
+      if (args[0] === 'for-each-ref') {
+        return 'feature/test\torigin/feature/test\t=';
+      }
+
+      return '';
+    });
+    mockGit.status.mockResolvedValue({
+      current: 'feature/test',
+      tracking: 'origin/feature/test',
+      ahead: 0,
+      behind: 0,
+      files: [],
+      isClean: () => true,
+    });
+
+    const result = await callTool(server, 'git_flow', {
+      repo_path: '/repo',
+      action: 'overview',
+      response_format: 'json',
+      tag: true,
+      delete_branch: true,
+      force: false,
+      no_create_branches: false,
+    });
+
+    expect(result.content[0].type).toBe('text');
+    expect(result.structuredContent).toMatchObject({
+      initialized: true,
+      compatibility: 'structured',
+    });
+  });
+
+  it('accepts the canonical operation contract', async () => {
+    mockGit.raw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'config' && args[1] === '--get-regexp') {
+        return '';
+      }
+
+      return '';
+    });
+
+    const result = await callTool(server, 'git_flow', {
+      repo_path: '/repo',
+      operation: 'config',
+      config_action: 'add',
+      name: 'qa',
+      branch_kind: 'base',
+      parent: 'main',
+      response_format: 'json',
+      tag: true,
+      delete_branch: true,
+      force: false,
+      no_create_branches: false,
+      no_backmerge: false,
+    });
+
+    expect(result.structuredContent).toMatchObject({
+      action: 'add',
+      branch: { name: 'qa', kind: 'base' },
+    });
   });
 });

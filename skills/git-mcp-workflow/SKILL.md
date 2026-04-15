@@ -1,6 +1,6 @@
 ---
 name: git-mcp-workflow
-description: 'Use for repositories managed through the git-mcp server when an agent needs to inspect repository state, create commits, manage branches and remotes, rebase, cherry-pick, stash, bisect, work with worktrees, handle Git Flow, manage tags, recover from mistakes, or explain Git concepts using MCP tools instead of raw git CLI commands. Especially relevant for prompts about git_status, git_commit, git_push, git_rebase, git_cherry_pick, git_worktree, git_stash, git_reflog, git_flow, git_lfs, submodules, PR preparation, release tagging, and Git recovery.'
+description: 'Use for repositories managed through the git-mcp server when an agent needs to inspect repository state, create commits, manage branches and remotes, rebase, cherry-pick, stash, bisect, work with worktrees, handle Git Flow or git-flow-next-style workflows, manage tags, recover from mistakes, or explain Git concepts using MCP tools instead of raw git CLI commands. Especially relevant for prompts about git_status, git_commit, git_push, git_rebase, git_cherry_pick, git_worktree, git_stash, git_reflog, git_flow, git_lfs, submodules, PR preparation, release tagging, and Git recovery.'
 ---
 
 # Git MCP Workflow
@@ -17,7 +17,7 @@ Use this skill when you need to:
 - Stage, commit, branch, fetch, pull, and push via MCP tools
 - Rebase, cherry-pick, stash, bisect, tag, or use worktrees
 - Recover from resets, detached HEAD, or other Git mishaps
-- Choose between GitHub Flow, Git Flow, trunk-based, or release workflows
+- Choose between GitHub Flow, classic Git Flow, git-flow-next-style presets, trunk-based, or release workflows
 - Prepare a branch for review or release while preserving safety
 - Explain Git concepts in terms of the `git-mcp` tool surface
 
@@ -128,7 +128,7 @@ Reach for these tools deliberately:
 - `git_tag` for release tags
 - `git_submodule` for embedded repositories
 - `git_lfs` for large binary assets
-- `git_flow` for scheduled release workflows
+- `git_flow` for scheduled release workflows, preset init, flow overview/config inspection, config CRUD, and finish recovery
 
 ## Tool Selection
 
