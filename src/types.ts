@@ -196,6 +196,7 @@ export interface FlowFinishState {
   readonly strategy: FlowMergeStrategy;
   readonly deleteBranch: boolean;
   readonly keepBranch: boolean;
+  readonly filters: readonly FlowFilterExecutionResult[];
   readonly tagName?: string;
   readonly tagMessage?: string;
   readonly remote?: string;

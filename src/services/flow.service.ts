@@ -186,6 +186,25 @@ interface NormalizedFlowRequest {
 
 const DEFAULT_REMOTE = 'origin';
 const FINISH_STATE_PREFIX = 'gitflow.state.finish';
+const FILTER_MAX_RUNTIME_MS = 10_000;
+const FILTER_MAX_OUTPUT_CHARS = 64_000;
+const SAFE_CHILD_ENV_KEYS = [
+  'PATH',
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'SystemRoot',
+  'ComSpec',
+  'PATHEXT',
+  'WINDIR',
+] as const;
 const FLOW_CONFIG_PROPERTIES = [
   'type',
   'parent',
@@ -222,6 +241,28 @@ const CONTROL_STAGES: readonly FlowFinishStage[] = [
   'publish',
   'cleanup',
 ];
+
+function buildSafeChildEnv(extraEnv: Readonly<Record<string, string>>): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of SAFE_CHILD_ENV_KEYS) {
+    const value = process.env[key];
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+  return {
+    ...env,
+    ...extraEnv,
+  };
+}
+
+function isFileSafe(candidate: string): boolean {
+  try {
+    return existsSync(candidate) && statSync(candidate).isFile();
+  } catch {
+    return false;
+  }
+}
 
 function asBoolean(value: string | undefined): boolean | undefined {
   if (value === undefined) {
@@ -1045,9 +1086,45 @@ async function resolveTopicBranchSelection(
   return candidates[0]!;
 }
 
-function toGlobRegex(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^${escaped.replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
+function globMatches(value: string, pattern: string): boolean {
+  const normalizedValue = value.toLocaleLowerCase();
+  const normalizedPattern = pattern.toLocaleLowerCase();
+
+  let valueIndex = 0;
+  let patternIndex = 0;
+  let starIndex = -1;
+  let backtrackValueIndex = -1;
+
+  while (valueIndex < normalizedValue.length) {
+    const patternChar = normalizedPattern[patternIndex];
+    if (patternChar === '?' || patternChar === normalizedValue[valueIndex]) {
+      patternIndex += 1;
+      valueIndex += 1;
+      continue;
+    }
+
+    if (patternChar === '*') {
+      starIndex = patternIndex;
+      backtrackValueIndex = valueIndex;
+      patternIndex += 1;
+      continue;
+    }
+
+    if (starIndex !== -1) {
+      patternIndex = starIndex + 1;
+      backtrackValueIndex += 1;
+      valueIndex = backtrackValueIndex;
+      continue;
+    }
+
+    return false;
+  }
+
+  while (normalizedPattern[patternIndex] === '*') {
+    patternIndex += 1;
+  }
+
+  return patternIndex === normalizedPattern.length;
 }
 
 async function listTopicBranches(
@@ -1055,7 +1132,7 @@ async function listTopicBranches(
   topic: FlowTopicDefinition,
   pattern?: string,
 ): Promise<readonly FlowTopicSelection[]> {
-  const matcher = pattern ? toGlobRegex(pattern) : null;
+  const matcher = pattern ? (candidate: string) => globMatches(candidate, pattern) : null;
   const summary = await git.branch(['-a']);
   const prefix = topic.prefix ?? '';
 
@@ -1068,7 +1145,7 @@ async function listTopicBranches(
       fullName: branch,
       shortName: branch.slice(prefix.length),
     }))
-    .filter(branch => (matcher ? matcher.test(branch.shortName) : true))
+    .filter(branch => (matcher ? matcher(branch.shortName) : true))
     .sort((left, right) => left.shortName.localeCompare(right.shortName));
 }
 
@@ -1141,7 +1218,7 @@ async function runHook(
     `${context.topic}-${phase}`,
     `gitflow-${context.topic}-${phase}`,
   ].map(candidate => path.join(hooksDir, candidate));
-  const hookPath = candidates.find(candidate => existsSync(candidate) && statSync(candidate).isFile());
+  const hookPath = candidates.find(candidate => isFileSafe(candidate));
 
   if (!hookPath) {
     return {
@@ -1154,8 +1231,7 @@ async function runHook(
   try {
     const result = await execFileAsync(hookPath, [context.topic, context.shortName, context.fullName], {
       cwd: repoPath,
-      env: {
-        ...process.env,
+      env: buildSafeChildEnv({
         GITFLOW_ACTION: phase,
         GITFLOW_TOPIC: context.topic,
         GITFLOW_NAME: context.shortName,
@@ -1163,7 +1239,7 @@ async function runHook(
         GITFLOW_PARENT: context.parent ?? '',
         GITFLOW_REMOTE: context.remote ?? '',
         GITFLOW_STAGE: context.stage ?? '',
-      },
+      }),
     });
 
     return {
@@ -1195,34 +1271,86 @@ async function runFilterProgram(
   return await new Promise((resolve, reject) => {
     const child = spawn(executable, [...args], {
       cwd: repoPath,
-      env: {
-        ...process.env,
+      env: buildSafeChildEnv({
         GITFLOW_FILTER_INPUT: input,
-      },
+      }),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
     let stdout = '';
     let stderr = '';
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      child.kill('SIGKILL');
+      reject(new Error(`Filter timed out after ${FILTER_MAX_RUNTIME_MS}ms.`));
+    }, FILTER_MAX_RUNTIME_MS);
+
+    const rejectOnce = (error: Error): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    };
+
+    const resolveOnce = (result: { stdout: string; stderr: string }): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    const appendBounded = (current: string, chunk: string): string => {
+      const remaining = FILTER_MAX_OUTPUT_CHARS - current.length;
+      if (remaining <= 0) {
+        throw new Error(`Filter output exceeded ${FILTER_MAX_OUTPUT_CHARS} characters.`);
+      }
+      if (chunk.length > remaining) {
+        throw new Error(`Filter output exceeded ${FILTER_MAX_OUTPUT_CHARS} characters.`);
+      }
+      return current + chunk;
+    };
 
     child.stdout.on('data', chunk => {
-      stdout += chunk.toString();
+      try {
+        stdout = appendBounded(stdout, chunk.toString());
+      } catch (error) {
+        child.kill('SIGKILL');
+        rejectOnce(error instanceof Error ? error : new Error(String(error)));
+      }
     });
     child.stderr.on('data', chunk => {
-      stderr += chunk.toString();
+      try {
+        stderr = appendBounded(stderr, chunk.toString());
+      } catch (error) {
+        child.kill('SIGKILL');
+        rejectOnce(error instanceof Error ? error : new Error(String(error)));
+      }
     });
-    child.on('error', reject);
+    child.on('error', error => {
+      rejectOnce(error instanceof Error ? error : new Error(String(error)));
+    });
     child.on('close', code => {
+      if (settled) {
+        return;
+      }
       if (code === 0) {
-        resolve({ stdout, stderr });
+        resolveOnce({ stdout, stderr });
         return;
       }
 
-      reject(new Error(stderr || `Filter exited with code ${code ?? 'unknown'}.`));
+      rejectOnce(new Error(stderr || `Filter exited with code ${code ?? 'unknown'}.`));
     });
 
-    child.stdin.write(input);
-    child.stdin.end();
+    child.stdin.end(input);
   });
 }
 
@@ -1300,6 +1428,7 @@ async function writeFinishState(git: GitClient, state: FlowFinishState): Promise
     keepBranch: String(state.keepBranch),
     pendingBackmergeIndex: String(state.pendingBackmergeIndex),
     publishAfterFinish: String(state.publishAfterFinish),
+    filters: JSON.stringify(state.filters),
     tagName: state.tagName ?? '',
     tagMessage: state.tagMessage ?? '',
     remote: state.remote ?? '',
@@ -1324,6 +1453,7 @@ async function clearFinishState(git: GitClient): Promise<void> {
     'keepBranch',
     'pendingBackmergeIndex',
     'publishAfterFinish',
+    'filters',
     'tagName',
     'tagMessage',
     'remote',
@@ -1360,6 +1490,9 @@ async function readFinishState(git: GitClient): Promise<FlowFinishState | null> 
       strategy: asStrategy(getConfigValue(entries, buildFinishStateKey('strategy')), 'merge'),
       deleteBranch: asBoolean(getConfigValue(entries, buildFinishStateKey('deleteBranch'))) ?? true,
       keepBranch: asBoolean(getConfigValue(entries, buildFinishStateKey('keepBranch'))) ?? false,
+      filters: JSON.parse(
+        getConfigValue(entries, buildFinishStateKey('filters')) ?? '[]',
+      ) as readonly FlowFilterExecutionResult[],
       tagName: getConfigValue(entries, buildFinishStateKey('tagName')) || undefined,
       tagMessage: getConfigValue(entries, buildFinishStateKey('tagMessage')) || undefined,
       remote: getConfigValue(entries, buildFinishStateKey('remote')) || undefined,
@@ -2108,6 +2241,7 @@ async function prepareFinishState(
     strategy,
     deleteBranch: options.deleteBranch ?? !keepBranch,
     keepBranch,
+    filters,
     tagName,
     tagMessage,
     remote: options.remote,
@@ -2125,7 +2259,7 @@ async function executeFinishStages(
   options: FlowOptions,
 ): Promise<FlowFinishResult> {
   const hooks: FlowHookExecutionResult[] = [];
-  const filters: FlowFilterExecutionResult[] = [];
+  const filters: FlowFilterExecutionResult[] = [...finishState.filters];
   let current = finishState;
 
   if (current.stage === 'prepare') {
@@ -2201,20 +2335,9 @@ async function executeFinishStages(
   }
 
   if (current.stage === 'hook-post-parent') {
-    hooks.push(
-      await runHook(repoPath, git, state, 'post-finish', {
-        topic: current.topic,
-        shortName: current.shortName,
-        fullName: current.branchName,
-        parent: current.parentBranch,
-        remote: current.remote,
-        stage: current.stage,
-      }),
-    );
-
     current = {
       ...current,
-      stage: current.backmergeBranches.length > 0 ? 'checkout-backmerge' : 'publish',
+      stage: current.backmergeBranches.length > 0 ? 'checkout-backmerge' : 'hook-post-finish',
     };
     await writeFinishState(git, current);
   }
@@ -2258,8 +2381,27 @@ async function executeFinishStages(
     current = {
       ...current,
       pendingBackmergeIndex: current.pendingBackmergeIndex + 1,
-      stage: current.pendingBackmergeIndex + 1 < current.backmergeBranches.length ? 'checkout-backmerge' : 'publish',
+      stage:
+        current.pendingBackmergeIndex + 1 < current.backmergeBranches.length
+          ? 'checkout-backmerge'
+          : 'hook-post-finish',
     };
+    await writeFinishState(git, current);
+  }
+
+  if (current.stage === 'hook-post-finish') {
+    hooks.push(
+      await runHook(repoPath, git, state, 'post-finish', {
+        topic: current.topic,
+        shortName: current.shortName,
+        fullName: current.branchName,
+        parent: current.parentBranch,
+        remote: current.remote,
+        stage: current.stage,
+      }),
+    );
+
+    current = { ...current, stage: 'publish' };
     await writeFinishState(git, current);
   }
 
