@@ -78,3 +78,27 @@ Use **tools** when:
 - You need filtering, pagination, or custom options (e.g. `git_log` with `author`, `since`, or `grep`)
 - You need a response format other than JSON (e.g. `markdown`)
 - You are performing any write operation
+
+## Public Agent Discovery Endpoints
+
+The documentation site publishes additional static discovery metadata for crawlers and AI agents:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `/.well-known/api-catalog` | High-level discovery links for docs and MCP metadata |
+| `/.well-known/mcp/server-card.json` | Server metadata card describing transport and capabilities |
+| `/.well-known/agent-skills/index.json` | Index of published agent skill files with digest metadata |
+| `/.well-known/agent-skills/git-mcp-overview/SKILL.md` | Human-readable skill profile for git-mcp |
+| `/robots.txt` | Crawl policy including AI/model crawler directives |
+
+These files are intended for web discovery of project capabilities and do not replace MCP runtime discovery inside connected clients.
+
+## Static Hosting Constraints
+
+This site is hosted as static content (GitHub Pages), so discovery metadata is static at build time:
+
+- No dynamic capability negotiation or per-client responses
+- No request signing or auth handshakes at `/.well-known/*`
+- No runtime mutation of skill indexes or server cards
+
+For runtime behavior, always trust live MCP server capabilities exposed by the connected transport/session.

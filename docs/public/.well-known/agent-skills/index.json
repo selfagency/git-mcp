@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-04-17",
+  "skills": [
+    {
+      "id": "git-mcp-overview",
+      "name": "git-mcp-overview",
+      "description": "Discover and safely use the git-mcp server for Git inspection and mutation workflows.",
+      "url": "https://git-mcp.self.agency/.well-known/agent-skills/git-mcp-overview/SKILL.md",
+      "media_type": "text/markdown",
+      "digest": {
+        "sha256": "6dc1d7a35f89da366c8f9dae12e7801e521a0ca78f4026e27f655f02f23d5b4d"
+      }
+    }
+  ]
+}

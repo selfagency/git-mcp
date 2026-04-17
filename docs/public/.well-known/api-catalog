@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "name": "git-mcp API Catalog",
+  "description": "Discovery links for the git-mcp public docs and MCP metadata",
+  "links": [
+    {
+      "rel": "service-desc",
+      "href": "https://git-mcp.self.agency/.well-known/mcp/server-card.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "agent-skills",
+      "href": "https://git-mcp.self.agency/.well-known/agent-skills/index.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "docs",
+      "href": "https://git-mcp.self.agency/guide/getting-started",
+      "type": "text/html"
+    },
+    {
+      "rel": "source",
+      "href": "https://github.com/selfagency/git-mcp",
+      "type": "text/html"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "name": "git-mcp",
+  "title": "git-mcp",
+  "description": "Production-grade Git MCP server built with TypeScript and simple-git",
+  "homepage": "https://git-mcp.self.agency",
+  "repository": "https://github.com/selfagency/git-mcp",
+  "protocol": "mcp",
+  "transport": ["stdio"],
+  "license": "MIT",
+  "maintainer": {
+    "name": "Daniel Sieradski"
+  },
+  "capabilities": {
+    "resources": true,
+    "tools": true,
+    "prompts": false,
+    "sampling": false
+  },
+  "documentation": {
+    "getting_started": "https://git-mcp.self.agency/guide/getting-started",
+    "tools": "https://git-mcp.self.agency/tools/",
+    "resources": "https://git-mcp.self.agency/guide/resources"
+  }
+}

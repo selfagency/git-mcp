@@ -14,6 +14,15 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['link', { rel: 'api-catalog', href: '/.well-known/api-catalog', type: 'application/json' }],
+    [
+      'link',
+      { rel: 'mcp-server-card', href: '/.well-known/mcp/server-card.json', type: 'application/json' },
+    ],
+    [
+      'link',
+      { rel: 'agent-skills', href: '/.well-known/agent-skills/index.json', type: 'application/json' },
+    ],
     ['meta', { name: 'theme-color', content: '#f05133' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'git-mcp' }],

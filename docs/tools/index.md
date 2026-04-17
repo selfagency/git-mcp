@@ -8,12 +8,11 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 
 ## Tool Groups
 
-- [Status](/tools/status) — `git_status` with actions `status`, `diff`, `diff_main`.
-- [History](/tools/history) — `git_history` with actions `log`, `show`, `blame`, `reflog`, `lg`, `who`.
-- [Commits](/tools/commits) — `git_commits` with actions `add`, `restore`, `commit`, `reset`, `revert`, `undo`, `nuke`, `wip`, `unstage`, `amend`.
-- [Branches](/tools/branches) — `git_branches` with actions `list`, `create`, `delete`, `rename`, `checkout`, `set_upstream`, `recent`.
-- [Remotes](/tools/remotes) — `git_remotes` with actions `list`, `manage`, `fetch`, `pull`, `push`.
-- [Workspace](/tools/workspace) — `git_workspace` with actions `stash`, `stash_all`, `rebase`, `cherry_pick`, `bisect`, `tag`, `worktree`, `submodule`.
+- [Inspect](/tools/inspect) — `git_inspect`: read-only status, history, diff, and blame operations.
+- [Write](/tools/write) — `git_write`: staging, commit, reset, revert, and undo workflows.
+- [Branches](/tools/branch) — `git_branch`: list/create/delete/rename/checkout and upstream management.
+- [Remote](/tools/remote) — `git_remote`: remote management plus fetch/pull/push.
+- [Advanced](/tools/advanced) — `git_advanced`: stash, rebase, cherry-pick, bisect, tags, worktrees, submodules.
 - [Context](/tools/context) — `git_context` with actions `summary`, `search`, `get_config`, `set_config`, `aliases`.
 - [LFS](/tools/lfs) — `git_lfs`: Git Large File Storage.
 - [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.

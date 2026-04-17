@@ -3,7 +3,7 @@
     "git": {
       "command": "pnpx",
       "args": [
-        "@selfagency/git-mcp",
+        "@selfagency/git-mcp@latest",
         "--repo-path",
         "${workspaceFolder}"
       ]
