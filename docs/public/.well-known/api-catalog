@@ -9,6 +9,21 @@
       "type": "application/json"
     },
     {
+      "rel": "service-index",
+      "href": "https://git-mcp.self.agency/.well-known/mcp/server-cards.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "mcp",
+      "href": "https://git-mcp.self.agency/.well-known/mcp.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "http-message-signatures-directory",
+      "href": "https://git-mcp.self.agency/.well-known/http-message-signatures-directory",
+      "type": "application/http-message-signatures-directory+json"
+    },
+    {
       "rel": "agent-skills",
       "href": "https://git-mcp.self.agency/.well-known/agent-skills/index.json",
       "type": "application/json"

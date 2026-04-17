@@ -14,6 +14,7 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['script', { src: '/webmcp.js' }],
     ['link', { rel: 'api-catalog', href: '/.well-known/api-catalog', type: 'application/json' }],
     [
       'link',

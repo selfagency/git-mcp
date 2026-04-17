@@ -1,0 +1,12 @@
+{
+  "serverCards": [
+    {
+      "name": "git-mcp",
+      "serverInfo": {
+        "name": "git-mcp",
+        "version": "0.2.0"
+      },
+      "url": "https://git-mcp.self.agency/.well-known/mcp/server-card.json"
+    }
+  ]
+}

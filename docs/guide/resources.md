@@ -85,11 +85,16 @@ The documentation site publishes additional static discovery metadata for crawle
 
 | Endpoint | Purpose |
 | --- | --- |
+| `/.well-known/mcp.json` | Compatibility pointer to MCP server card documents |
 | `/.well-known/api-catalog` | High-level discovery links for docs and MCP metadata |
 | `/.well-known/mcp/server-card.json` | Server metadata card describing transport and capabilities |
+| `/.well-known/mcp/server-cards.json` | Multi-card discovery list containing `server-card.json` references |
+| `/.well-known/http-message-signatures-directory` | Web Bot Auth JWKS for request-signing key discovery |
 | `/.well-known/agent-skills/index.json` | Index of published agent skill files with digest metadata |
 | `/.well-known/agent-skills/git-mcp-overview/SKILL.md` | Human-readable skill profile for git-mcp |
 | `/robots.txt` | Crawl policy including AI/model crawler directives |
+
+The site also exposes a minimal WebMCP imperative API registration script at `/webmcp.js` that registers a read-only docs navigation tool when `navigator.modelContext` is available.
 
 These files are intended for web discovery of project capabilities and do not replace MCP runtime discovery inside connected clients.
 
@@ -102,3 +107,5 @@ This site is hosted as static content (GitHub Pages), so discovery metadata is s
 - No runtime mutation of skill indexes or server cards
 
 For runtime behavior, always trust live MCP server capabilities exposed by the connected transport/session.
+
+For Web Bot Auth specifically, this static site publishes a discoverable JWKS directory, but does not itself send signed crawler requests. Request signing and `Signature-Agent` / `Signature-Input` headers must be implemented by any active bot/agent HTTP client that calls other sites.
