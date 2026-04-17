@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-17
+
+## What's Changed
+
+- chore(deps): bump hono from 4.12.12 to 4.12.14 in the npm_and_yarn group across 1 directory by @dependabot[bot] in https://github.com/selfagency/git-mcp/pull/8
+
+**Full Changelog**: https://github.com/selfagency/git-mcp/compare/v0.2.0...v0.2.1
+
+_Source: changes from v0.2.0 to v0.2.1._
+
 ## [0.2.0] - 2026-04-15
 
 ## What's Changed
