@@ -51,6 +51,25 @@ describe('listRemotes', () => {
     const remotes = await listRemotes('/repo');
     expect(remotes).toEqual([]);
   });
+
+  it('redacts credential-like URL components', async () => {
+    const git = makeGit({
+      getRemotes: vi.fn().mockResolvedValue([
+        {
+          name: 'origin',
+          refs: {
+            fetch: 'https://alice:secret@example.com/abc/ghp_12345678901234567890/repo.git?token=abcd',
+            push: 'https://alice:secret@example.com/repo.git?auth=abcd',
+          },
+        },
+      ]),
+    });
+    vi.mocked(getGit).mockReturnValue(git as any);
+    const remotes = await listRemotes('/repo');
+    expect(remotes[0]?.fetchUrl).not.toContain('alice:secret');
+    expect(remotes[0]?.fetchUrl).toContain('token=***');
+    expect(remotes[0]?.pushUrl).toContain('auth=***');
+  });
 });
 
 // ---------------------------------------------------------------------------

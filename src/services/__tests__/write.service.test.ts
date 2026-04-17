@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../git/client.js', () => ({
   getGit: vi.fn(),
   validateRepoPath: vi.fn((p: string) => p),
+  validatePathArguments: vi.fn((_: string, paths: string[]) => paths),
   toGitError: vi.fn((e: unknown) => ({ kind: 'unknown', message: String(e) })),
 }));
 
 import { getGit } from '../../git/client.js';
+import { validatePathArguments } from '../../git/client.js';
 import { addFiles, commitChanges, resetChanges, restoreFiles, revertCommit } from '../write.service.js';
 
 function makeGit(overrides: Record<string, unknown> = {}) {
@@ -46,6 +48,16 @@ describe('addFiles', () => {
     const git = makeGit();
     vi.mocked(getGit).mockReturnValue(git as any);
     await expect(addFiles('/repo', {})).rejects.toThrow('Provide paths or set all=true');
+  });
+
+  it('propagates path traversal validation errors', async () => {
+    const git = makeGit();
+    vi.mocked(getGit).mockReturnValue(git as any);
+    vi.mocked(validatePathArguments).mockImplementationOnce(() => {
+      throw new Error('Path argument escapes repository root');
+    });
+
+    await expect(addFiles('/repo', { paths: ['../secret'] })).rejects.toThrow('escapes repository root');
   });
 });
 

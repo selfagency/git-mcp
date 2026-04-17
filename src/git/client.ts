@@ -56,6 +56,28 @@ export function validateRepoPath(repoPath: string): string {
   return resolved;
 }
 
+export function validatePathArgument(repoPath: string, candidatePath: string): string {
+  const normalized = path.posix.normalize(candidatePath.replaceAll('\\', '/'));
+
+  if (path.posix.isAbsolute(normalized) || normalized === '..' || normalized.startsWith('../')) {
+    throw new Error(`Path argument escapes repository root: ${candidatePath}`);
+  }
+
+  const repoRoot = validateRepoPath(repoPath);
+  const resolved = path.resolve(repoRoot, normalized);
+  const relative = path.relative(repoRoot, resolved);
+
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Path argument escapes repository root: ${candidatePath}`);
+  }
+
+  return normalized;
+}
+
+export function validatePathArguments(repoPath: string, candidatePaths: readonly string[]): string[] {
+  return candidatePaths.map(candidate => validatePathArgument(repoPath, candidate));
+}
+
 export function getGit(repoPath: string): SimpleGit {
   const safePath = validateRepoPath(repoPath);
   return simpleGit({ baseDir: safePath, binary: 'git', maxConcurrentProcesses: 6 });

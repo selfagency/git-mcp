@@ -36,9 +36,22 @@ function sanitizeRemoteUrl(url: string | undefined): string | undefined {
   if (!url) return url;
   try {
     const parsed = new URL(url);
-    if (!parsed.username && !parsed.password) return url;
     parsed.username = '';
     parsed.password = '';
+
+    // Redact common credential-like query parameters while preserving key names.
+    for (const key of parsed.searchParams.keys()) {
+      if (/(token|auth|password|secret|key)/i.test(key)) {
+        parsed.searchParams.set(key, '***');
+      }
+    }
+
+    // Redact opaque token-like path segments often used by some hosted providers.
+    parsed.pathname = parsed.pathname
+      .split('/')
+      .map(segment => (/^[A-Za-z0-9_-]{20,}$/.test(segment) ? '***' : segment))
+      .join('/');
+
     return parsed.toString();
   } catch {
     // SCP-style URLs (e.g. git@github.com:org/repo.git) are not parseable by URL

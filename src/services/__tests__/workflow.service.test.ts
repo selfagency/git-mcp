@@ -161,4 +161,58 @@ describe('runWorkflowAction', () => {
     const status = await runWorkflowAction('/repo', { action: 'status' });
     expect(status.markdown).toContain('No active workflow state.');
   });
+
+  it('returns no-op message for abort when no active workflow exists', async () => {
+    const git = makeConfigAwareGit();
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    const result = await runWorkflowAction('/repo', { action: 'abort' });
+    expect(result.markdown).toContain('No active workflow to abort.');
+  });
+
+  it('throws for continue when no active workflow exists', async () => {
+    const git = makeConfigAwareGit();
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    await expect(runWorkflowAction('/repo', { action: 'continue' })).rejects.toThrow('No active workflow state');
+  });
+
+  it('requires workflow when start is requested', async () => {
+    const git = makeConfigAwareGit();
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    await expect(runWorkflowAction('/repo', { action: 'start' })).rejects.toThrow('workflow is required');
+  });
+
+  it('rejects start when another workflow is already active', async () => {
+    let cherryPickFailed = false;
+    const git = makeConfigAwareGit({
+      onRaw: async args => {
+        if (args[0] === 'checkout') return '';
+
+        if (args[0] === 'cherry-pick' && args[1] === 'abc123' && !cherryPickFailed) {
+          cherryPickFailed = true;
+          throw new Error('CONFLICT (content): merge conflict');
+        }
+
+        return '';
+      },
+    });
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    await runWorkflowAction('/repo', {
+      action: 'start',
+      workflow: 'replay',
+      mode: 'cherry-pick',
+      targetBranch: 'feature/test',
+      sourceCommits: ['abc123'],
+    });
+
+    await expect(
+      runWorkflowAction('/repo', {
+        action: 'start',
+        workflow: 'snapshot',
+      }),
+    ).rejects.toThrow('Active workflow replay');
+  });
 });

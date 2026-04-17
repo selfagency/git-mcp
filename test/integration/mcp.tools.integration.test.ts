@@ -53,6 +53,8 @@ const mockGit = vi.hoisted(() => ({
 vi.mock('../../src/git/client.js', () => ({
   getGit: vi.fn().mockReturnValue(mockGit),
   validateRepoPath: vi.fn((p: string) => p),
+  validatePathArgument: vi.fn((_: string, filePath: string) => filePath),
+  validatePathArguments: vi.fn((_: string, paths: string[]) => paths),
   toGitError: (e: unknown) => {
     const msg = e instanceof Error ? e.message : String(e);
     return { kind: 'unknown', message: msg };

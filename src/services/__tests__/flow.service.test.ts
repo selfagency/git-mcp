@@ -353,4 +353,39 @@ describe('runFlowAction init and dynamic topic actions', () => {
     expect(raw).toHaveBeenCalledWith(['merge', '--abort']);
     expect(result.markdown).toContain('Aborted finish for feature/login-rework.');
   });
+
+  it('throws when control operation is missing controlAction', async () => {
+    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    await expect(runFlowAction('/repo', { operation: 'control' })).rejects.toThrow('controlAction is required');
+  });
+
+  it('throws when control action is requested without persisted finish state', async () => {
+    const raw = vi.fn().mockImplementation(async (args: string[]) => {
+      if (args[0] === 'config' && args[1] === '--get-regexp') {
+        if (args[2] === '^gitflow\\.') {
+          return joinLines([
+            'gitflow.version 1.0',
+            'gitflow.initialized true',
+            'gitflow.branch.main.type base',
+            'gitflow.branch.feature.type topic',
+            'gitflow.branch.feature.parent main',
+            'gitflow.branch.feature.prefix feature/',
+          ]);
+        }
+
+        return '';
+      }
+
+      return '';
+    });
+
+    const git = makeGit({ raw });
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    await expect(runFlowAction('/repo', { operation: 'control', controlAction: 'continue' })).rejects.toThrow(
+      'No in-progress git_flow finish state found',
+    );
+  });
 });

@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../git/client.js', () => ({
   getGit: vi.fn(),
   validateRepoPath: vi.fn((p: string) => p),
+  validatePathArgument: vi.fn((_: string, filePath: string) => filePath),
   toGitError: vi.fn((e: unknown) => ({ kind: 'unknown', message: String(e) })),
 }));
 
 import { getGit } from '../../git/client.js';
+import { validatePathArgument } from '../../git/client.js';
 import { blameFile, getDiff, getDiffSummary, getLog, getStatus, showRef } from '../inspect.service.js';
 
 function makeGit(overrides: Record<string, unknown> = {}) {
@@ -123,6 +125,18 @@ describe('showRef', () => {
     const result = await showRef('/repo', 'HEAD');
     expect(git.raw).toHaveBeenCalledWith(['show', '--stat', '--patch', 'HEAD']);
     expect(result).toBe('commit info');
+  });
+});
+
+describe('blameFile', () => {
+  it('throws when path validation rejects traversal', async () => {
+    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as any);
+    vi.mocked(validatePathArgument).mockImplementationOnce(() => {
+      throw new Error('Path argument escapes repository root');
+    });
+
+    await expect(blameFile('/repo', '../etc/passwd')).rejects.toThrow('escapes repository root');
   });
 });
 

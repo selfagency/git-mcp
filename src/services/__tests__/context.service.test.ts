@@ -138,6 +138,19 @@ describe('getConfig', () => {
     expect(git.raw).toHaveBeenCalledWith(['config', '--list']);
     expect(result).toContain('user.name=John');
   });
+
+  it('blocks restricted config keys', async () => {
+    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as any);
+    await expect(getConfig('/repo', 'credential.helper')).rejects.toThrow('not permitted');
+  });
+
+  it('redacts sensitive token-like values', async () => {
+    const git = makeGit({ raw: vi.fn().mockResolvedValue('ghp_0123456789abcdef0123456789abcdef01234567\n') });
+    vi.mocked(getGit).mockReturnValue(git as any);
+    const result = await getConfig('/repo', 'user.name');
+    expect(result).toBe('***');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -150,5 +163,11 @@ describe('setConfig', () => {
     const result = await setConfig('/repo', 'user.name', 'Alice');
     expect(git.raw).toHaveBeenCalledWith(['config', 'user.name', 'Alice']);
     expect(result).toBe('Set user.name.');
+  });
+
+  it('blocks restricted config keys for writes', async () => {
+    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as any);
+    await expect(setConfig('/repo', 'credential.helper', 'store')).rejects.toThrow('not permitted');
   });
 });

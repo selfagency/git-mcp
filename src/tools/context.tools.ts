@@ -4,13 +4,10 @@ import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { getConfig, getContextSummary, searchHistory, setConfig } from '../services/context.service.js';
+import { renderContent } from './render.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
-  if (typeof content === 'string' && format === 'markdown') {
-    return content;
-  }
-
-  return JSON.stringify(content, null, 2);
+  return renderContent(content, format);
 }
 
 function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {

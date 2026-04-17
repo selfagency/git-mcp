@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ALLOW_FORCE_PUSH, ALLOW_NO_VERIFY } from '../config.js';
 import { resolveRepoPath } from '../config.js';
-import { getGit, toGitError } from '../git/client.js';
+import { getGit, toGitError, validatePathArguments } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { runBisectAction, runStashAction, runTagAction } from '../services/advanced.service.js';
 import {
@@ -14,44 +14,30 @@ import {
   setUpstream,
 } from '../services/branch.service.js';
 import { getConfig, getContextSummary, searchHistory, setConfig } from '../services/context.service.js';
-import { getDiff, getDiffSummary, getReflog, getStatus, showRef, blameFile } from '../services/inspect.service.js';
+import {
+  blameFile,
+  getDiff,
+  getDiffSummary,
+  getReflog,
+  getStatus,
+  parseCommitLogLine,
+  showRef,
+} from '../services/inspect.service.js';
 import { fetchRemote, listRemotes, manageRemote, pullRemote, pushRemote } from '../services/remote.service.js';
 import { addFiles, commitChanges, resetChanges, restoreFiles, revertCommit } from '../services/write.service.js';
-
-function render(content: unknown, format: 'markdown' | 'json'): string {
-  if (typeof content === 'string' && format === 'markdown') {
-    return content;
-  }
-
-  return JSON.stringify(content, null, 2);
-}
+import { renderContent } from './render.js';
 
 function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
   const gitError = toGitError(error);
   return { content: [{ type: 'text', text: `Error (${gitError.kind}): ${gitError.message}` }] };
 }
 
-interface ParsedCommit {
-  readonly hash: string;
-  readonly authorName: string;
-  readonly authorEmail: string;
-  readonly dateIso: string;
-  readonly subject: string;
+function render(content: unknown, format: 'markdown' | 'json'): string {
+  return renderContent(content, format);
 }
 
-function parseLogLine(line: string): ParsedCommit | null {
-  const [hash, authorName, authorEmail, dateIso, ...subjectParts] = line.split('\t');
-  if (!hash || !authorName || !authorEmail || !dateIso) {
-    return null;
-  }
-
-  return {
-    hash,
-    authorName,
-    authorEmail,
-    dateIso,
-    subject: subjectParts.join('\t'),
-  };
+function parseLogLine(line: string) {
+  return parseCommitLogLine(line);
 }
 
 export function registerGroupedTools(server: McpServer): void {
@@ -266,7 +252,10 @@ export function registerGroupedTools(server: McpServer): void {
             args.push(revision_range);
           }
 
-          const combinedPathspecs = [...(pathspecs ?? []), ...(file_path ? [file_path] : [])];
+          const combinedPathspecs = validatePathArguments(repoPath, [
+            ...(pathspecs ?? []),
+            ...(file_path ? [file_path] : []),
+          ]);
           if (combinedPathspecs.length > 0) {
             args.push('--', ...combinedPathspecs);
           }
@@ -277,7 +266,7 @@ export function registerGroupedTools(server: McpServer): void {
             .map(line => line.trim())
             .filter(line => line.length > 0)
             .map(parseLogLine)
-            .filter((item): item is ParsedCommit => item !== null);
+            .filter(item => item !== null);
 
           return {
             content: [{ type: 'text', text: render(commits, response_format) }],
@@ -326,7 +315,7 @@ export function registerGroupedTools(server: McpServer): void {
 
         const args = ['shortlog', '-s', '-n', '--all', '--no-merges'];
         if (file_path) {
-          args.push('--', file_path);
+          args.push('--', ...validatePathArguments(repoPath, [file_path]));
         }
         const output = await git.raw(args);
         return {
@@ -1025,6 +1014,7 @@ export function registerGroupedTools(server: McpServer): void {
         good_ref: z.string().optional(),
         bad_ref: z.string().optional(),
         command: z.string().optional(),
+        command_args: z.array(z.string()).optional(),
         name: z.string().optional(),
         target: z.string().optional(),
         sign: z.boolean().default(false),
@@ -1090,6 +1080,7 @@ export function registerGroupedTools(server: McpServer): void {
       good_ref,
       bad_ref,
       command,
+      command_args,
       name,
       target,
       sign,
@@ -1147,6 +1138,7 @@ export function registerGroupedTools(server: McpServer): void {
       good_ref?: string;
       bad_ref?: string;
       command?: string;
+      command_args?: string[];
       name?: string;
       target?: string;
       sign: boolean;
@@ -1335,6 +1327,7 @@ export function registerGroupedTools(server: McpServer): void {
             goodRef: good_ref,
             badRef: bad_ref,
             command,
+            commandArgs: command_args,
           });
           return {
             content: [{ type: 'text', text: render(output, response_format) }],
@@ -1496,7 +1489,7 @@ export function registerGroupedTools(server: McpServer): void {
             args.push('--jobs', String(submodule_jobs));
           }
           if (paths && paths.length > 0) {
-            args.push('--', ...paths);
+            args.push('--', ...validatePathArguments(repoPath, paths));
           }
           const rawOutput = await git.raw(args);
           const output = rawOutput.trim() || 'Submodule update complete.';
@@ -1527,8 +1520,9 @@ export function registerGroupedTools(server: McpServer): void {
           if (!branch || !path) {
             throw new Error('branch and path are required for submodule set_branch.');
           }
-          const rawOutput = await git.raw(['submodule', 'set-branch', '--branch', branch, '--', path]);
-          const output = rawOutput.trim() || `Set submodule ${path} branch to ${branch}.`;
+          const [safePath] = validatePathArguments(repoPath, [path]);
+          const rawOutput = await git.raw(['submodule', 'set-branch', '--branch', branch, '--', safePath]);
+          const output = rawOutput.trim() || `Set submodule ${safePath} branch to ${branch}.`;
           return {
             content: [{ type: 'text', text: render(output, response_format) }],
             structuredContent: { output },
@@ -1539,8 +1533,9 @@ export function registerGroupedTools(server: McpServer): void {
           throw new Error('url and path are required for submodule add.');
         }
 
-        const rawOutput = await git.raw(['submodule', 'add', url, path]);
-        const output = rawOutput.trim() || `Added submodule ${path}.`;
+        const [safePath] = validatePathArguments(repoPath, [path]);
+        const rawOutput = await git.raw(['submodule', 'add', url, safePath]);
+        const output = rawOutput.trim() || `Added submodule ${safePath}.`;
 
         return {
           content: [{ type: 'text', text: render(output, response_format) }],

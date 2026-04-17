@@ -9,13 +9,10 @@ import {
   WorkflowNameSchema,
 } from '../schemas/index.js';
 import { runWorkflowAction } from '../services/workflow.service.js';
+import { renderMarkdownData } from './render.js';
 
 function render(markdown: string, data: unknown, format: 'markdown' | 'json'): string {
-  if (format === 'markdown') {
-    return markdown;
-  }
-
-  return JSON.stringify(data, null, 2);
+  return renderMarkdownData(markdown, data, format);
 }
 
 export function registerWorkflowTools(server: McpServer): void {

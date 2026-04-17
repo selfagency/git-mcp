@@ -15,13 +15,10 @@ import {
   ResponseFormatSchema,
 } from '../schemas/index.js';
 import { runFlowAction, type FlowLegacyAction, type FlowOperation } from '../services/flow.service.js';
+import { renderMarkdownData } from './render.js';
 
 function render(markdown: string, data: unknown, format: 'markdown' | 'json'): string {
-  if (format === 'markdown') {
-    return markdown;
-  }
-
-  return JSON.stringify(data, null, 2);
+  return renderMarkdownData(markdown, data, format);
 }
 
 const FLOW_ACTION_VALUES = [

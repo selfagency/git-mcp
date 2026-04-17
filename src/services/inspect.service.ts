@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { CHARACTER_LIMIT, EXCLUDED_DIFF_DIRECTORIES, EXCLUDED_DIFF_EXTENSIONS } from '../constants.js';
-import { getGit } from '../git/client.js';
+import { getGit, validatePathArgument } from '../git/client.js';
 import type { CommitInfo, DiffSummary, FileStatus } from '../types.js';
 
 export interface GitStatusResult {
@@ -38,7 +38,7 @@ function truncate(text: string): string {
   return `${text.slice(0, CHARACTER_LIMIT)}\n\n[truncated to ${CHARACTER_LIMIT} characters]`;
 }
 
-function parseLogLine(line: string): CommitInfo | null {
+export function parseCommitLogLine(line: string): CommitInfo | null {
   const [hash, authorName, authorEmail, dateIso, ...subjectParts] = line.split('\t');
   if (!hash || !authorName || !authorEmail || !dateIso) {
     return null;
@@ -132,7 +132,7 @@ export async function getLog(repoPath: string, options: GitLogOptions): Promise<
   }
 
   if (options.filePath) {
-    args.push('--', options.filePath);
+    args.push('--', validatePathArgument(repoPath, options.filePath));
   }
 
   const output = await git.raw(args);
@@ -141,7 +141,7 @@ export async function getLog(repoPath: string, options: GitLogOptions): Promise<
     .split('\n')
     .map(line => line.trim())
     .filter(line => line.length > 0)
-    .map(parseLogLine)
+    .map(parseCommitLogLine)
     .filter((item): item is CommitInfo => item !== null);
 }
 
@@ -194,12 +194,13 @@ export async function getDiff(repoPath: string, options: GitDiffOptions): Promis
 
 export async function blameFile(repoPath: string, filePath: string, ref?: string): Promise<string> {
   const git = getGit(repoPath);
+  const safeFilePath = validatePathArgument(repoPath, filePath);
 
   const args = ['blame'];
   if (ref) {
     args.push(ref);
   }
-  args.push('--', filePath);
+  args.push('--', safeFilePath);
 
   const output = await git.raw(args);
   return truncate(output);

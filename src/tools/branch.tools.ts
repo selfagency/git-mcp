@@ -11,13 +11,10 @@ import {
   renameBranch,
   setUpstream,
 } from '../services/branch.service.js';
+import { renderContent } from './render.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
-  if (typeof content === 'string' && format === 'markdown') {
-    return content;
-  }
-
-  return JSON.stringify(content, null, 2);
+  return renderContent(content, format);
 }
 
 export function registerBranchTools(server: McpServer): void {
