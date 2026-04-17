@@ -2,7 +2,7 @@
 title: Safety Model
 ---
 
-git-mcp is built around the principle that **every mutating Git action can lose work**. The server applies several layers of protection to prevent accidental or AI-induced data loss.
+git-mcp is built around the principle that **every mutating Git action can lose work**. The server applies several layers of protection to prevent accidental or agent-induced data loss.
 
 ## Inspect Before Mutate
 
@@ -46,7 +46,7 @@ GIT_ALLOW_NO_VERIFY=true
 
 ## Preferring Revert Over Reset
 
-When an AI assistant needs to undo a published commit, git-mcp favors `git_revert` over `git_reset`. Revert creates a new commit that inverts the changes, preserving the history visible to other collaborators. Reset rewrites history and should only be used for local, unpublished work.
+When an AI agent needs to undo a published commit, git-mcp favors `git_revert` over `git_reset`. Revert creates a new commit that inverts the changes, preserving the history visible to other collaborators. Reset rewrites history and should only be used for local, unpublished work.
 
 ## Path Traversal Prevention
 

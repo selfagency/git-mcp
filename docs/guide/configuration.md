@@ -75,6 +75,6 @@ Per-request signing can also be enabled by passing `sign: true` (and optionally 
 - Without `GIT_ALLOW_FORCE_PUSH=true`, calling `git_push` with `force: true` falls back to a safe push (the `force` field is ignored).
 - Without `GIT_ALLOW_NO_VERIFY=true`, `no_verify: true` on `git_commit` / `git_push` is ignored and hooks always run.
 
-This ensures that even if an AI assistant requests a dangerous operation, it cannot succeed unless you have explicitly permitted it at the server level.
+This ensures that even if an AI agent or coding agent requests a dangerous operation, it cannot succeed unless you have explicitly permitted it at the server level.
 
 See also: [Safety model](/guide/safety)

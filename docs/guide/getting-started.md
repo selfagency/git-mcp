@@ -2,13 +2,15 @@
 title: Getting Started
 ---
 
-git-mcp is a production-grade [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI assistants full access to Git workflows. It uses [simple-git](https://github.com/steveukx/git-js) under the hood and requires only a system Git installation — no other dependencies.
+git-mcp is a production-grade [Model Context Protocol](https://modelcontextprotocol.io) server that gives AI agents full access to Git workflows. It uses [simple-git](https://github.com/steveukx/git-js) under the hood and requires only a system Git installation — no other dependencies.
+
+It is especially useful for coding agents running inside GitHub Copilot, Claude Code, Cursor, and OpenAI Codex, where reliable Git inspection and safe mutation matter more than vibes and shell roulette.
 
 ## Prerequisites
 
 - Node.js 20 or later
 - Git installed and available on `PATH`
-- An MCP-compatible client (Claude Desktop, VS Code Copilot, etc.)
+- An MCP-compatible AI agent or coding agent host (Claude Desktop, GitHub Copilot in VS Code, Cursor, OpenAI Codex, etc.)
 
 ## Installation
 
@@ -120,7 +122,7 @@ If neither is set, the AI must provide `repo_path` explicitly in every tool call
 
 ## Verifying the Installation
 
-Ask your AI assistant:
+Ask your AI agent:
 
 > "What's the git status of this repo?"
 
@@ -128,7 +130,7 @@ or
 
 > "Show me the last 5 commits."
 
-The AI will call `git_status` or `git_log` and stream results back. If you see an error about `repo_path`, set `GIT_REPO_PATH` in the server configuration.
+The AI agent will call `git_status` or `git_log` and stream results back. If you see an error about `repo_path`, set `GIT_REPO_PATH` in the server configuration.
 
 ## Next Steps
 

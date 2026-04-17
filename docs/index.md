@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: git-mcp
-  text: Git for AI Assistants
-  tagline: A production-grade Model Context Protocol server giving AI clients full Git workflow access — inspect, write, branch, remote, LFS, git-flow, and more.
+  text: Git for AI Agents
+  tagline: A production-grade Model Context Protocol server giving AI agents and coding agents full Git workflow access — ideal for GitHub Copilot, Claude Code, Cursor, OpenAI Codex, and more.
   actions:
     - theme: brand
       text: Get Started
@@ -37,7 +37,7 @@ features:
     details: Track file patterns, install hooks, pull/push LFS objects, and migrate existing history into or out of LFS.
   - icon: 📚
     title: Documentation Lookup
-    details: Search git-scm.com and fetch man pages directly from the LLM. Ask git questions without leaving the chat.
+    details: Search git-scm.com and fetch man pages directly from your AI agent. Ask Git questions without leaving the coding session.
   - icon: 🔌
     title: MCP Resources
     details: URI-addressable read-only snapshots of status, log, branches, and diff for resource-aware MCP clients.

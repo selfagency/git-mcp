@@ -45,6 +45,6 @@ Unlike all other tools, `git_docs` does **not** accept a `repo_path` parameter. 
 
 ## Use Cases
 
-- Ask the AI assistant to explain what a Git option does without external searches
+- Ask the AI agent to explain what a Git option does without external searches
 - Verify correct syntax for less common Git commands during a workflow
 - Retrieve comprehensive option lists for commands like `git log`, `git diff`, or `git rebase`

@@ -2,13 +2,13 @@
 title: Context & Config Tools
 ---
 
-Context and configuration tools let AI assistants understand repository state at a high level and read or write Git configuration.
+Context and configuration tools let AI agents understand repository state at a high level and read or write Git configuration.
 
 ## git_context_summary
 
 Returns a concise summary of the repository: current branch, upstream tracking status, pending changes, recent commits, and any in-progress operations (merge, rebase, cherry-pick, bisect).
 
-This is the recommended starting point for any AI-assisted workflow — call it first to orient before making changes.
+This is the recommended starting point for any AI-agent or coding-agent workflow — call it first to orient before making changes.
 
 | Parameter         | Type                   | Required | Default      | Description                     |
 | ----------------- | ---------------------- | -------- | ------------ | ------------------------------- |

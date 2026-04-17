@@ -4,7 +4,7 @@ const SITE_URL = 'https://git-mcp.self.agency';
 
 export default defineConfig({
   title: 'git-mcp',
-  description: 'A production-grade Git MCP server — powering AI-assisted Git workflows',
+  description: 'A production-grade Git MCP server for AI agents and coding agents like GitHub Copilot, Claude Code, Cursor, and OpenAI Codex',
   lang: 'en-US',
   base: '/',
 
@@ -96,7 +96,8 @@ export default defineConfig({
       'meta',
       {
         property: 'og:description',
-        content: 'A production-grade Git MCP server — powering AI-assisted Git workflows',
+        content:
+          'A production-grade Git MCP server for AI agents and coding agents like GitHub Copilot, Claude Code, Cursor, and OpenAI Codex',
       },
     ],
   ],

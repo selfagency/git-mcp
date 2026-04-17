@@ -2,7 +2,9 @@
 
 > A Git [MCP](https://modelcontextprotocol.io) server that doesn't suck
 
-Exposes the full Git workflow to any MCP-compatible AI client — inspect, write, branch, remote, stash, rebase, LFS, git-flow, documentation lookup, and more. Designed to be safe by default, composable, and fast. Powered by [`simple-git`](https://github.com/steveukx/git-js).
+Exposes the full Git workflow to any MCP-compatible AI agent — inspect, write, branch, remote, stash, rebase, LFS, git-flow, documentation lookup, and more. Designed to be safe by default, composable, and fast. Powered by [`simple-git`](https://github.com/steveukx/git-js).
+
+Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and OpenAI Codex, while remaining compatible with any MCP client that can call tools and resources.
 
 ---
 
@@ -15,7 +17,7 @@ Exposes the full Git workflow to any MCP-compatible AI client — inspect, write
 - **Git Flow** — git-flow-next-style workflow support with preset init, overview, config CRUD, generalized topic actions, finish recovery, optional hook/filter parity, and classic feature/release/hotfix/support aliases, without requiring the external CLI
 - **Documentation lookup** — search git-scm.com and fetch man pages directly from the LLM
 - **MCP Resources** — URI-addressable read-only views of status, log, branches, and diff
-- **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for agent users; installable via [`skills-npm`](https://github.com/antfu/skills-npm)
+- **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for AI agents and coding agents; installable via [`skills-npm`](https://github.com/antfu/skills-npm) and [skill.sh](https://skills.sh/)
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
 - **Cross-platform** — macOS, Linux, Windows (Git for Windows)
 
