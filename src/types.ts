@@ -213,3 +213,52 @@ export interface FlowFinishResult {
   readonly hooks: readonly FlowHookExecutionResult[];
   readonly filters: readonly FlowFilterExecutionResult[];
 }
+
+export type WorkflowName = 'snapshot' | 'replay' | 'branch_surgery' | 'publish';
+
+export type WorkflowLifecycleAction = 'start' | 'status' | 'continue' | 'abort' | 'list';
+
+export type WorkflowExecutionStatus = 'running' | 'paused' | 'completed' | 'failed' | 'aborted';
+
+export type WorkflowStepStatus = 'pending' | 'completed' | 'failed';
+
+export interface WorkflowStepResult {
+  readonly index: number;
+  readonly name: string;
+  readonly status: WorkflowStepStatus;
+  readonly output?: string;
+  readonly error?: string;
+}
+
+export interface WorkflowStepResumeConfig {
+  readonly continueArgs: readonly string[];
+  readonly abortArgs?: readonly string[];
+}
+
+export interface WorkflowStepDefinition {
+  readonly kind: 'gitRaw';
+  readonly name: string;
+  readonly args: readonly string[];
+  readonly readOnly: boolean;
+  readonly destructive?: boolean;
+  readonly openWorld?: boolean;
+  readonly resumable?: WorkflowStepResumeConfig;
+}
+
+export interface WorkflowDefinition {
+  readonly workflow: WorkflowName;
+  readonly steps: readonly WorkflowStepDefinition[];
+  readonly params: Readonly<Record<string, unknown>>;
+}
+
+export interface WorkflowState {
+  readonly id: string;
+  readonly workflow: WorkflowName;
+  readonly status: WorkflowExecutionStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly currentStep: number;
+  readonly steps: readonly WorkflowStepResult[];
+  readonly pauseReason?: string;
+  readonly params: Readonly<Record<string, unknown>>;
+}

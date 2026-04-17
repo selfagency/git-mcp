@@ -16,6 +16,7 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 - [Context](/tools/context) — `git_context` with actions `summary`, `search`, `get_config`, `set_config`, `aliases`.
 - [LFS](/tools/lfs) — `git_lfs`: Git Large File Storage.
 - [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.
+- [Workflow](/tools/workflow) — `git_workflow`: resumable multi-step workflow orchestration.
 - [Docs](/tools/docs) — `git_docs`: Git documentation search.
 
 ## Common Parameters
@@ -82,6 +83,15 @@ git_lfs  repo_path  action  [patterns] [remote] [include] [exclude] [everything]
 
 ```text
 git_flow  repo_path  [action] [operation] [config_action] [topic_action] [control_action] [topic] [name] [new_name] [pattern] [match_mode] [branch_kind] [parent] [prefix] [start_point] [base_ref] [preset] [scope] [config_file] [force] [no_create_branches] [main_branch] [develop_branch] [staging_branch] [production_branch] [remote] [upstream_strategy] [downstream_strategy] [strategy] [fetch] [ff] [keep_branch] [no_backmerge] [rebase_before_finish] [preserve_merges] [publish] [force_delete] [auto_update] [tag] [tag_prefix] [tag_message] [delete_branch]
+```
+
+### Workflow tool
+
+```text
+git_workflow  repo_path  [action=start|status|continue|abort|list] [workflow=snapshot|replay|branch_surgery|publish]
+              [base_branch] [log_count] [mode=cherry-pick|am] [target_branch] [source_commits] [patch_files]
+              [three_way] [backup_branch] [reset_to] [confirm_hard_reset] [publish] [remote] [force_with_lease]
+              [set_upstream] [fetch_first] [rebase_onto]
 ```
 
 ### Docs tool (no repo_path)
