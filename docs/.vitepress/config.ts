@@ -14,16 +14,80 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['script', { src: '/webmcp.js' }],
-    ['link', { rel: 'api-catalog', href: '/.well-known/api-catalog', type: 'application/json' }],
+    [
+      'script',
+      {},
+      `
+      (() => {
+        if (typeof navigator === 'undefined' || !navigator.modelContext) {
+          return;
+        }
+
+        try {
+          navigator.modelContext.registerTool({
+            name: 'open_git_mcp_docs',
+            title: 'Open git-mcp docs',
+            description: 'Open git-mcp documentation pages in this tab.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                section: {
+                  type: 'string',
+                  enum: ['getting-started', 'tools', 'resources'],
+                  default: 'getting-started'
+                }
+              },
+              additionalProperties: false
+            },
+            annotations: {
+              readOnlyHint: true
+            },
+            execute: async (input) => {
+              const section = input?.section ?? 'getting-started';
+              const routes = {
+                'getting-started': '/guide/getting-started',
+                tools: '/tools/',
+                resources: '/guide/resources'
+              };
+
+              const targetPath = routes[section] ?? routes['getting-started'];
+              const targetUrl = new URL(targetPath, window.location.origin).toString();
+
+              window.location.assign(targetUrl);
+
+              return {
+                ok: true,
+                url: targetUrl
+              };
+            }
+          });
+        } catch {
+          // Ignore duplicate registration or unsupported runtime errors.
+        }
+      })();
+      `,
+    ],
+    [
+      'link',
+      {
+        rel: 'api-catalog',
+        href: '/.well-known/api-catalog',
+        type: 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
+      },
+    ],
     [
       'link',
       { rel: 'mcp-server-card', href: '/.well-known/mcp/server-card.json', type: 'application/json' },
     ],
+    ['link', { rel: 'service-desc', href: '/.well-known/mcp/server-card.json', type: 'application/json' }],
+    ['link', { rel: 'service-doc', href: '/guide/getting-started', type: 'text/html' }],
+    ['link', { rel: 'describedby', href: '/.well-known/openid-configuration', type: 'application/json' }],
     [
       'link',
       { rel: 'agent-skills', href: '/.well-known/agent-skills/index.json', type: 'application/json' },
     ],
+    ['meta', { 'http-equiv': 'Link', content: '</.well-known/api-catalog>; rel="api-catalog"' }],
+    ['meta', { name: 'content-signal', content: 'ai-train=no, search=yes, ai-input=no' }],
     ['meta', { name: 'theme-color', content: '#f05133' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:title', content: 'git-mcp' }],

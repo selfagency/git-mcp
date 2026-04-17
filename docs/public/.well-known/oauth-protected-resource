@@ -1,0 +1,10 @@
+{
+  "resource": "https://git-mcp.self.agency/mcp",
+  "authorization_servers": [
+    "https://git-mcp.self.agency"
+  ],
+  "scopes_supported": [
+    "mcp:read",
+    "mcp:write"
+  ]
+}
