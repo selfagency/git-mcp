@@ -621,73 +621,92 @@ function getSupportedWorkflows(): readonly WorkflowName[] {
   return ['snapshot', 'replay', 'branch_surgery', 'publish'];
 }
 
+function runListAction(): WorkflowActionResult {
+  const workflows = getSupportedWorkflows();
+  return renderResult(`Supported workflows: ${workflows.join(', ')}`, { workflows });
+}
+
+function runStatusAction(existingState: WorkflowState | null): WorkflowActionResult {
+  if (!existingState) {
+    return renderResult('No active workflow state.', { state: null });
+  }
+  return renderResult(formatState(existingState), { state: existingState });
+}
+
+async function runAbortAction(repoPath: string, existingState: WorkflowState | null): Promise<WorkflowActionResult> {
+  if (!existingState) {
+    return renderResult('No active workflow to abort.', { state: null });
+  }
+
+  const aborted = await abortActive(repoPath, existingState);
+  await clearState(repoPath);
+  return renderResult(`Aborted workflow ${aborted.workflow} (${aborted.id}).`, { state: aborted });
+}
+
+async function runContinueAction(repoPath: string, existingState: WorkflowState | null): Promise<WorkflowActionResult> {
+  if (!existingState) {
+    throw new Error('No active workflow state found. Start a workflow first.');
+  }
+
+  const progressed = await continuePaused(repoPath, existingState);
+  if (progressed.status === 'completed' || progressed.status === 'aborted') {
+    await clearState(repoPath);
+  }
+
+  return renderResult(formatState(progressed), { state: progressed });
+}
+
+async function runStartAction(
+  repoPath: string,
+  options: WorkflowOptions,
+  existingState: WorkflowState | null,
+): Promise<WorkflowActionResult> {
+  if (!options.workflow) {
+    throw new Error('workflow is required for action=start.');
+  }
+
+  if (existingState && (existingState.status === 'running' || existingState.status === 'paused')) {
+    throw new Error(
+      `Active workflow ${existingState.workflow} (${existingState.id}) is ${existingState.status}. ` +
+        'Use action=status|continue|abort first.',
+    );
+  }
+
+  const definition = buildDefinition(repoPath, options);
+  const initial = buildInitialState(definition);
+  await writeState(repoPath, initial);
+  const completedState = await execute(repoPath, {
+    definition,
+    state: initial,
+  });
+
+  if (completedState.status === 'completed') {
+    await clearState(repoPath);
+  }
+
+  return renderResult(formatState(completedState), {
+    workflow: definition.workflow,
+    state: completedState,
+    steps: definition.steps,
+  });
+}
+
 export async function runWorkflowAction(repoPath: string, options: WorkflowOptions): Promise<WorkflowActionResult> {
   if (options.action === 'list') {
-    const workflows = getSupportedWorkflows();
-    return renderResult(`Supported workflows: ${workflows.join(', ')}`, { workflows });
+    return runListAction();
   }
 
   const existingState = await readState(repoPath);
 
-  if (options.action === 'status') {
-    if (!existingState) {
-      return renderResult('No active workflow state.', { state: null });
-    }
-    return renderResult(formatState(existingState), { state: existingState });
-  }
-
-  if (options.action === 'abort') {
-    if (!existingState) {
-      return renderResult('No active workflow to abort.', { state: null });
-    }
-
-    const aborted = await abortActive(repoPath, existingState);
-    await clearState(repoPath);
-    return renderResult(`Aborted workflow ${aborted.workflow} (${aborted.id}).`, { state: aborted });
-  }
-
-  if (options.action === 'continue') {
-    if (!existingState) {
-      throw new Error('No active workflow state found. Start a workflow first.');
-    }
-
-    const progressed = await continuePaused(repoPath, existingState);
-    if (progressed.status === 'completed' || progressed.status === 'aborted') {
-      await clearState(repoPath);
-    }
-
-    return renderResult(formatState(progressed), { state: progressed });
-  }
-
-  if (options.action === 'start') {
-    if (!options.workflow) {
-      throw new Error('workflow is required for action=start.');
-    }
-
-    if (existingState && (existingState.status === 'running' || existingState.status === 'paused')) {
-      throw new Error(
-        `Active workflow ${existingState.workflow} (${existingState.id}) is ${existingState.status}. ` +
-          'Use action=status|continue|abort first.',
-      );
-    }
-
-    const definition = buildDefinition(repoPath, options);
-    const initial = buildInitialState(definition);
-    await writeState(repoPath, initial);
-    const completedState = await execute(repoPath, {
-      definition,
-      state: initial,
-    });
-
-    if (completedState.status === 'completed') {
-      await clearState(repoPath);
-    }
-
-    return renderResult(formatState(completedState), {
-      workflow: definition.workflow,
-      state: completedState,
-      steps: definition.steps,
-    });
+  switch (options.action) {
+    case 'status':
+      return runStatusAction(existingState);
+    case 'abort':
+      return runAbortAction(repoPath, existingState);
+    case 'continue':
+      return runContinueAction(repoPath, existingState);
+    case 'start':
+      return runStartAction(repoPath, options, existingState);
   }
 
   throw new Error(`Unsupported action: ${options.action}`);
