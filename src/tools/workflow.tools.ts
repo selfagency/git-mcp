@@ -41,7 +41,14 @@ export function registerWorkflowTools(server: McpServer): void {
           .boolean()
           .default(false)
           .describe('Required true when reset_to is provided because hard reset is destructive.'),
-        publish: z.boolean().default(false).describe('Publish after replay/branch_surgery sequence.'),
+        auto_publish: z
+          .boolean()
+          .default(false)
+          .describe('Automatically publish after replay/branch_surgery sequence.'),
+        publish: z
+          .boolean()
+          .optional()
+          .describe('Deprecated alias for auto_publish; retained for backward compatibility.'),
         remote: z.string().optional().describe('Remote name for publish-related steps (default: origin).'),
         force_with_lease: z.boolean().default(false).describe('Use --force-with-lease for publish push steps.'),
         set_upstream: z.boolean().default(false).describe('Use --set-upstream for publish push steps.'),
@@ -70,6 +77,7 @@ export function registerWorkflowTools(server: McpServer): void {
       backup_branch,
       reset_to,
       confirm_hard_reset,
+      auto_publish,
       publish,
       remote,
       force_with_lease,
@@ -91,7 +99,8 @@ export function registerWorkflowTools(server: McpServer): void {
       backup_branch?: string;
       reset_to?: string;
       confirm_hard_reset: boolean;
-      publish: boolean;
+      auto_publish: boolean;
+      publish?: boolean;
       remote?: string;
       force_with_lease: boolean;
       set_upstream: boolean;
@@ -114,7 +123,7 @@ export function registerWorkflowTools(server: McpServer): void {
           backupBranch: backup_branch,
           resetTo: reset_to,
           confirmHardReset: confirm_hard_reset,
-          publish,
+          publish: publish ?? auto_publish,
           remote,
           forceWithLease: force_with_lease,
           setUpstream: set_upstream,

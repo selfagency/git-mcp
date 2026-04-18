@@ -102,7 +102,7 @@ function redactConfigValue(key: string, value: string): string {
     return '***';
   }
   // Redact credentials embedded in URLs: https://user:pass@host → https://***@host
-  const stripped = value.replace(/(https?:\/\/)[^@\s]+@/g, '$1***@');
+  const stripped = value.replaceAll(/(https?:\/\/)[^@\s]+@/g, '$1***@');
   // Redact long token-like strings that should never be exposed.
   if (TOKEN_VALUE_PATTERNS.some(pattern => pattern.test(stripped))) {
     return '***';
@@ -144,6 +144,6 @@ export async function setConfig(repoPath: string, key: string, value: string): P
   }
 
   const git = getGit(repoPath);
-  await git.raw(['config', key, value]);
+  await git.raw(['config', '--local', key, value]);
   return `Set ${key}.`;
 }

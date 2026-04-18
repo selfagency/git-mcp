@@ -254,7 +254,7 @@ describe('runFlowAction init and dynamic topic actions', () => {
   it('returns a recoverable paused state when finish hits a conflict', async () => {
     const raw = vi.fn().mockImplementation(async (args: string[]) => {
       if (args[0] === 'config' && args[1] === '--get-regexp') {
-        if (args[2] === '^gitflow\\.') {
+        if (args[2] === String.raw`^gitflow\.`) {
           return joinLines([
             'gitflow.version 1.0',
             'gitflow.initialized true',
@@ -304,7 +304,7 @@ describe('runFlowAction init and dynamic topic actions', () => {
   it('aborts a persisted finish state through the control action', async () => {
     const raw = vi.fn().mockImplementation(async (args: string[]) => {
       if (args[0] === 'config' && args[1] === '--get-regexp') {
-        if (args[2] === '^gitflow\\.') {
+        if (args[2] === String.raw`^gitflow\.`) {
           return joinLines([
             'gitflow.version 1.0',
             'gitflow.initialized true',

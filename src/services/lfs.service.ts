@@ -25,6 +25,27 @@ export interface LfsOptions {
   readonly everything?: boolean;
 }
 
+function buildIncludeExcludeArgs(options: Pick<LfsOptions, 'include' | 'exclude'>): string[] {
+  const args: string[] = [];
+  if (options.include) args.push('--include', options.include);
+  if (options.exclude) args.push('--exclude', options.exclude);
+  return args;
+}
+
+function ensurePatterns(options: LfsOptions, action: 'track' | 'untrack'): string[] {
+  if (!options.patterns || options.patterns.length === 0) {
+    throw new Error(`patterns is required for lfs ${action}.`);
+  }
+  return options.patterns;
+}
+
+function ensureRemote(options: LfsOptions, action: 'push'): string {
+  if (!options.remote) {
+    throw new Error(`remote is required for lfs ${action}.`);
+  }
+  return options.remote;
+}
+
 export async function runLfsAction(repoPath: string, options: LfsOptions): Promise<string> {
   const git = getGit(repoPath);
 
@@ -35,19 +56,15 @@ export async function runLfsAction(repoPath: string, options: LfsOptions): Promi
     }
 
     case 'track': {
-      if (!options.patterns || options.patterns.length === 0) {
-        throw new Error('patterns is required for lfs track.');
-      }
-      const output = await git.raw(['lfs', 'track', ...options.patterns]);
-      return output.trim() || `Tracking: ${options.patterns.join(', ')}`;
+      const patterns = ensurePatterns(options, 'track');
+      const output = await git.raw(['lfs', 'track', ...patterns]);
+      return output.trim() || `Tracking: ${patterns.join(', ')}`;
     }
 
     case 'untrack': {
-      if (!options.patterns || options.patterns.length === 0) {
-        throw new Error('patterns is required for lfs untrack.');
-      }
-      const output = await git.raw(['lfs', 'untrack', ...options.patterns]);
-      return output.trim() || `Untracked: ${options.patterns.join(', ')}`;
+      const patterns = ensurePatterns(options, 'untrack');
+      const output = await git.raw(['lfs', 'untrack', ...patterns]);
+      return output.trim() || `Untracked: ${patterns.join(', ')}`;
     }
 
     case 'ls-files': {
@@ -63,27 +80,23 @@ export async function runLfsAction(repoPath: string, options: LfsOptions): Promi
     case 'pull': {
       const args = ['lfs', 'pull'];
       if (options.remote) args.push(options.remote);
-      if (options.include) args.push('--include', options.include);
-      if (options.exclude) args.push('--exclude', options.exclude);
+      args.push(...buildIncludeExcludeArgs(options));
       const output = await git.raw(args);
       return output.trim() || 'LFS pull complete.';
     }
 
     case 'push': {
-      if (!options.remote) {
-        throw new Error('remote is required for lfs push.');
-      }
-      const args = ['lfs', 'push', options.remote];
+      const remote = ensureRemote(options, 'push');
+      const args = ['lfs', 'push', remote];
       if (options.everything) args.push('--all');
       const output = await git.raw(args);
-      return output.trim() || `LFS push to ${options.remote} complete.`;
+      return output.trim() || `LFS push to ${remote} complete.`;
     }
 
     case 'migrate-import': {
       const args = ['lfs', 'migrate', 'import'];
       if (options.everything) args.push('--everything');
-      if (options.include) args.push('--include', options.include);
-      if (options.exclude) args.push('--exclude', options.exclude);
+      args.push(...buildIncludeExcludeArgs(options));
       const output = await git.raw(args);
       return output.trim() || 'LFS migrate import complete.';
     }
@@ -91,8 +104,7 @@ export async function runLfsAction(repoPath: string, options: LfsOptions): Promi
     case 'migrate-export': {
       const args = ['lfs', 'migrate', 'export'];
       if (options.everything) args.push('--everything');
-      if (options.include) args.push('--include', options.include);
-      if (options.exclude) args.push('--exclude', options.exclude);
+      args.push(...buildIncludeExcludeArgs(options));
       const output = await git.raw(args);
       return output.trim() || 'LFS migrate export complete.';
     }

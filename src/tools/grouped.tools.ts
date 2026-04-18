@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { ALLOW_FORCE_PUSH, ALLOW_NO_VERIFY } from '../config.js';
-import { resolveRepoPath } from '../config.js';
+import { ALLOW_FORCE_PUSH, ALLOW_NO_VERIFY, resolveRepoPath } from '../config.js';
 import { getGit, toGitError, validatePathArguments } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { runBisectAction, runStashAction, runTagAction } from '../services/advanced.service.js';
@@ -25,6 +24,7 @@ import {
 } from '../services/inspect.service.js';
 import { fetchRemote, listRemotes, manageRemote, pullRemote, pushRemote } from '../services/remote.service.js';
 import { addFiles, commitChanges, resetChanges, restoreFiles, revertCommit } from '../services/write.service.js';
+import type { CommitInfo } from '../types.js';
 import { renderContent } from './render.js';
 
 function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
@@ -41,6 +41,16 @@ function parseLogLine(line: string) {
 }
 
 export function registerGroupedTools(server: McpServer): void {
+  registerGitStatusTool(server);
+  registerGitHistoryTool(server);
+  registerGitCommitsTool(server);
+  registerGitBranchesTool(server);
+  registerGitRemotesTool(server);
+  registerGitWorkspaceTool(server);
+  registerGitContextTool(server);
+}
+
+function registerGitStatusTool(server: McpServer): void {
   server.registerTool(
     'git_status',
     {
@@ -129,7 +139,9 @@ export function registerGroupedTools(server: McpServer): void {
       }
     },
   );
+}
 
+function registerGitHistoryTool(server: McpServer): void {
   server.registerTool(
     'git_history',
     {
@@ -266,7 +278,7 @@ export function registerGroupedTools(server: McpServer): void {
             .map(line => line.trim())
             .filter(line => line.length > 0)
             .map(parseLogLine)
-            .filter(item => item !== null);
+            .filter((item): item is CommitInfo => item !== null);
 
           return {
             content: [{ type: 'text', text: render(commits, response_format) }],
@@ -330,7 +342,9 @@ export function registerGroupedTools(server: McpServer): void {
       }
     },
   );
+}
 
+function registerGitCommitsTool(server: McpServer): void {
   server.registerTool(
     'git_commits',
     {
@@ -549,7 +563,9 @@ export function registerGroupedTools(server: McpServer): void {
       }
     },
   );
+}
 
+function registerGitBranchesTool(server: McpServer): void {
   server.registerTool(
     'git_branches',
     {
@@ -693,7 +709,9 @@ export function registerGroupedTools(server: McpServer): void {
       }
     },
   );
+}
 
+function registerGitRemotesTool(server: McpServer): void {
   server.registerTool(
     'git_remotes',
     {
@@ -965,7 +983,9 @@ export function registerGroupedTools(server: McpServer): void {
       }
     },
   );
+}
 
+function registerGitWorkspaceTool(server: McpServer): void {
   server.registerTool(
     'git_workspace',
     {
@@ -1546,7 +1566,9 @@ export function registerGroupedTools(server: McpServer): void {
       }
     },
   );
+}
 
+function registerGitContextTool(server: McpServer): void {
   server.registerTool(
     'git_context',
     {

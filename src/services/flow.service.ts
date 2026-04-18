@@ -227,7 +227,7 @@ const FLOW_FINISH_PROPERTIES = [
   'ff',
 ] as const;
 const FLOW_FILTER_PROPERTIES = ['version', 'tagMessage'] as const;
-const CONTROL_STAGES: readonly FlowFinishStage[] = [
+const CONTROL_STAGES: ReadonlySet<FlowFinishStage> = new Set<FlowFinishStage>([
   'prepare',
   'hook-pre-finish',
   'filter-version',
@@ -240,7 +240,7 @@ const CONTROL_STAGES: readonly FlowFinishStage[] = [
   'hook-post-finish',
   'publish',
   'cleanup',
-];
+]);
 
 function buildSafeChildEnv(extraEnv: Readonly<Record<string, string>>): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
@@ -544,34 +544,67 @@ function getPresetDefinition(options: FlowOptions): FlowPresetDefinition {
   };
 }
 
+function parseStructuredBranchEntry(key: string): { readonly branchName: string; readonly property: string } | null {
+  const match = /^gitflow\.branch\.([^.]+)\.(.+)$/.exec(key);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    branchName: match[1] ?? '',
+    property: match[2] ?? '',
+  };
+}
+
+function applyStructuredBranchProperty(
+  current: Partial<FlowBranchDefinition>,
+  property: string,
+  value: string,
+): Partial<FlowBranchDefinition> {
+  return {
+    ...current,
+    kind: property === 'type' ? (value === 'base' ? 'base' : 'topic') : current.kind,
+    parent: property === 'parent' ? value : current.parent,
+    prefix: property === 'prefix' ? value : current.prefix,
+    startPoint: property === 'startpoint' ? value : current.startPoint,
+    upstreamStrategy: property === 'upstreamstrategy' ? asStrategy(value, 'merge') : current.upstreamStrategy,
+    downstreamStrategy: property === 'downstreamstrategy' ? asStrategy(value, 'merge') : current.downstreamStrategy,
+    tag: property === 'tag' ? asBoolean(value) : current.tag,
+    tagPrefix: property === 'tagprefix' ? value : current.tagPrefix,
+    autoUpdate: property === 'autoupdate' ? asBoolean(value) : current.autoUpdate,
+    forceDelete: property === 'forcedelete' ? asBoolean(value) : current.forceDelete,
+  };
+}
+
+const LEGACY_FLOW_KEYS = [
+  'gitflow.branch.master',
+  'gitflow.branch.develop',
+  'gitflow.prefix.feature',
+  'gitflow.prefix.release',
+  'gitflow.prefix.hotfix',
+  'gitflow.prefix.support',
+] as const;
+
+function hasLegacyFlowKeys(config: ReadonlyMap<string, string>): boolean {
+  return LEGACY_FLOW_KEYS.some(key => config.has(key));
+}
+
 function getStructuredConfigState(config: ReadonlyMap<string, string>): FlowConfigState | null {
   const branches = new Map<string, Partial<FlowBranchDefinition>>();
 
   for (const [key, value] of config.entries()) {
-    const match = /^gitflow\.branch\.([^.]+)\.(.+)$/.exec(key);
-    if (!match) {
+    const parsed = parseStructuredBranchEntry(key);
+    if (!parsed) {
       continue;
     }
 
-    const [, branchName, property] = match;
+    const { branchName, property } = parsed;
     const current = branches.get(branchName) ?? {
       name: branchName,
       source: 'structured' as const,
     };
 
-    branches.set(branchName, {
-      ...current,
-      kind: property === 'type' ? (value === 'base' ? 'base' : 'topic') : current.kind,
-      parent: property === 'parent' ? value : current.parent,
-      prefix: property === 'prefix' ? value : current.prefix,
-      startPoint: property === 'startpoint' ? value : current.startPoint,
-      upstreamStrategy: property === 'upstreamstrategy' ? asStrategy(value, 'merge') : current.upstreamStrategy,
-      downstreamStrategy: property === 'downstreamstrategy' ? asStrategy(value, 'merge') : current.downstreamStrategy,
-      tag: property === 'tag' ? asBoolean(value) : current.tag,
-      tagPrefix: property === 'tagprefix' ? value : current.tagPrefix,
-      autoUpdate: property === 'autoupdate' ? asBoolean(value) : current.autoUpdate,
-      forceDelete: property === 'forcedelete' ? asBoolean(value) : current.forceDelete,
-    });
+    branches.set(branchName, applyStructuredBranchProperty(current, property, value));
   }
 
   if (branches.size === 0) {
@@ -598,15 +631,7 @@ function getStructuredConfigState(config: ReadonlyMap<string, string>): FlowConf
 }
 
 function getLegacyConfigState(config: ReadonlyMap<string, string>, options: FlowOptions): FlowConfigState | null {
-  const hasLegacyKeys =
-    config.has('gitflow.branch.master') ||
-    config.has('gitflow.branch.develop') ||
-    config.has('gitflow.prefix.feature') ||
-    config.has('gitflow.prefix.release') ||
-    config.has('gitflow.prefix.hotfix') ||
-    config.has('gitflow.prefix.support');
-
-  if (!hasLegacyKeys) {
+  if (!hasLegacyFlowKeys(config)) {
     return null;
   }
 
@@ -769,21 +794,14 @@ function inferHealthStatus(issues: readonly string[]): FlowHealthStatus {
   return 'healthy';
 }
 
-function validateFlowState(state: FlowConfigState): readonly string[] {
-  const issues: string[] = [];
-
-  if (!state.initialized) {
-    pushIssue(issues, 'Warning: git-flow is not initialized in this repository.');
-    return issues;
-  }
-
-  const baseNames = new Set(state.bases.map(branch => branch.name));
-  if (baseNames.size === 0) {
-    pushIssue(issues, 'Error: no base branches are configured.');
-  }
-
+function validateTopicDefinitions(
+  topics: readonly FlowTopicDefinition[],
+  baseNames: ReadonlySet<string>,
+  issues: string[],
+): void {
   const prefixes = new Map<string, string[]>();
-  for (const topic of state.topics) {
+
+  for (const topic of topics) {
     if (!topic.parent) {
       pushIssue(issues, `Error: topic branch type "${topic.name}" is missing a parent branch.`);
     } else if (!baseNames.has(topic.parent)) {
@@ -799,14 +817,16 @@ function validateFlowState(state: FlowConfigState): readonly string[] {
     }
   }
 
-  for (const [prefix, topics] of prefixes.entries()) {
-    if (topics.length > 1) {
-      pushIssue(issues, `Error: prefix "${prefix}" is shared by multiple topic types: ${topics.join(', ')}.`);
+  for (const [prefix, owners] of prefixes.entries()) {
+    if (owners.length > 1) {
+      pushIssue(issues, `Error: prefix "${prefix}" is shared by multiple topic types: ${owners.join(', ')}.`);
     }
   }
+}
 
-  const parentMap = new Map(state.bases.map(branch => [branch.name, branch.parent]));
-  for (const base of state.bases) {
+function validateBaseBranchCycles(bases: readonly FlowBranchDefinition[], issues: string[]): void {
+  const parentMap = new Map(bases.map(branch => [branch.name, branch.parent]));
+  for (const base of bases) {
     const seen = new Set<string>();
     let cursor = base.parent;
     while (cursor) {
@@ -818,6 +838,23 @@ function validateFlowState(state: FlowConfigState): readonly string[] {
       cursor = parentMap.get(cursor);
     }
   }
+}
+
+function validateFlowState(state: FlowConfigState): readonly string[] {
+  const issues: string[] = [];
+
+  if (!state.initialized) {
+    pushIssue(issues, 'Warning: git-flow is not initialized in this repository.');
+    return issues;
+  }
+
+  const baseNames = new Set(state.bases.map(branch => branch.name));
+  if (baseNames.size === 0) {
+    pushIssue(issues, 'Error: no base branches are configured.');
+  }
+
+  validateTopicDefinitions(state.topics, baseNames, issues);
+  validateBaseBranchCycles(state.bases, issues);
 
   return issues;
 }
@@ -1034,6 +1071,43 @@ async function branchExists(git: GitClient, branchName: string): Promise<boolean
   }
 }
 
+function selectionFromCurrentBranch(
+  currentBranch: string | undefined,
+  topic: FlowTopicDefinition,
+): FlowTopicSelection | null {
+  if (!currentBranch || !currentBranch.startsWith(topic.prefix ?? '')) {
+    return null;
+  }
+
+  return {
+    topic: topic.name,
+    fullName: currentBranch,
+    shortName: currentBranch.slice((topic.prefix ?? '').length),
+  };
+}
+
+function filterMatchingTopicCandidates(
+  allBranches: readonly string[],
+  topic: FlowTopicDefinition,
+  requestedName: string,
+  matchMode: FlowMatchMode,
+): FlowTopicSelection[] {
+  const prefix = topic.prefix ?? '';
+
+  return allBranches
+    .map(branch => branch.replace(/^remotes\/[^/]+\//, '').trim())
+    .filter((branch, index, entries) => entries.indexOf(branch) === index)
+    .filter(branch => branch.startsWith(prefix))
+    .map(branch => ({
+      topic: topic.name,
+      fullName: branch,
+      shortName: branch.slice(prefix.length),
+    }))
+    .filter(selection =>
+      matchMode === 'exact' ? selection.shortName === requestedName : selection.shortName.startsWith(requestedName),
+    );
+}
+
 async function resolveTopicBranchSelection(
   git: GitClient,
   state: FlowConfigState,
@@ -1042,37 +1116,18 @@ async function resolveTopicBranchSelection(
 ): Promise<FlowTopicSelection> {
   const matchMode = options.matchMode ?? 'exact';
   const currentStatus = await git.status();
-  const currentBranch = currentStatus.current;
+  const currentBranchSelection = selectionFromCurrentBranch(currentStatus.current ?? undefined, topic);
 
   if (!options.name) {
-    if (currentBranch && currentBranch.startsWith(topic.prefix ?? '')) {
-      return {
-        topic: topic.name,
-        fullName: currentBranch,
-        shortName: currentBranch.slice((topic.prefix ?? '').length),
-      };
+    if (currentBranchSelection) {
+      return currentBranchSelection;
     }
 
     throw new Error(`name is required for ${topic.name} unless the current branch is already a ${topic.name} branch.`);
   }
 
   const summary = await git.branch(['-a']);
-  const prefix = topic.prefix ?? '';
-  const candidates = summary.all
-    .map(branch => branch.replace(/^remotes\/[^/]+\//, '').trim())
-    .filter((branch, index, all) => all.indexOf(branch) === index)
-    .filter(branch => branch.startsWith(prefix))
-    .map(branch => ({
-      topic: topic.name,
-      fullName: branch,
-      shortName: branch.slice(prefix.length),
-    }))
-    .filter(selection => {
-      const requestedName = options.name ?? '';
-      return matchMode === 'exact'
-        ? selection.shortName === requestedName
-        : selection.shortName.startsWith(requestedName);
-    });
+  const candidates = filterMatchingTopicCandidates(summary.all, topic, options.name, matchMode);
 
   if (candidates.length === 0) {
     throw new Error(`No ${topic.name} branch matches "${options.name}".`);
@@ -1473,7 +1528,7 @@ async function readFinishState(git: GitClient): Promise<FlowFinishState | null> 
     );
 
     const stage = getConfigValue(entries, buildFinishStateKey('stage')) as FlowFinishStage | undefined;
-    if (!stage || !CONTROL_STAGES.includes(stage)) {
+    if (!stage || !CONTROL_STAGES.has(stage)) {
       return null;
     }
 
@@ -1893,6 +1948,80 @@ async function updateTopic(
   };
 }
 
+async function writeBaseConfig(
+  git: GitClient,
+  scopeArgs: readonly string[],
+  base: FlowBranchDefinition,
+): Promise<void> {
+  await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.type`, 'base');
+  if (base.parent) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.parent`, base.parent);
+  }
+  if (base.upstreamStrategy) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.upstreamstrategy`, base.upstreamStrategy);
+  }
+  if (base.downstreamStrategy) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.downstreamstrategy`, base.downstreamStrategy);
+  }
+  if (base.autoUpdate !== undefined) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.autoupdate`, String(base.autoUpdate));
+  }
+}
+
+async function writeTopicConfig(
+  git: GitClient,
+  scopeArgs: readonly string[],
+  topic: FlowTopicDefinition,
+): Promise<void> {
+  await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.type`, 'topic');
+  if (topic.parent) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.parent`, topic.parent);
+  }
+  if (topic.prefix) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.prefix`, topic.prefix);
+  }
+  if (topic.startPoint) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.startpoint`, topic.startPoint);
+  }
+  if (topic.upstreamStrategy) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.upstreamstrategy`, topic.upstreamStrategy);
+  }
+  if (topic.downstreamStrategy) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.downstreamstrategy`, topic.downstreamStrategy);
+  }
+  if (topic.tag !== undefined) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.tag`, String(topic.tag));
+  }
+  if (topic.tagPrefix) {
+    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.tagprefix`, topic.tagPrefix);
+  }
+  await setConfigValue(git, scopeArgs, `gitflow.${topic.name}.finish.strategy`, topic.command.finishStrategy);
+  await setConfigValue(git, scopeArgs, `gitflow.${topic.name}.finish.fetch`, String(topic.command.fetchBeforeFinish));
+  await setConfigValue(git, scopeArgs, `gitflow.${topic.name}.finish.keep`, String(topic.command.keepBranch));
+  await setConfigValue(
+    git,
+    scopeArgs,
+    `gitflow.${topic.name}.finish.publish`,
+    String(topic.command.publishAfterFinish),
+  );
+}
+
+async function createMissingBaseBranches(git: GitClient, bases: readonly FlowBranchDefinition[]): Promise<string[]> {
+  const createdBranches: string[] = [];
+  for (const base of bases) {
+    if (await branchExists(git, base.name)) {
+      continue;
+    }
+    if (base.parent) {
+      await git.raw(['branch', base.name, base.parent]);
+    } else {
+      await git.raw(['branch', base.name]);
+    }
+    createdBranches.push(base.name);
+  }
+  return createdBranches;
+}
+
 async function initializeFlow(git: GitClient, options: FlowOptions): Promise<FlowActionResult> {
   const state = await getFlowConfigState(git, options);
   if (state.initialized && !options.force) {
@@ -1907,69 +2036,14 @@ async function initializeFlow(git: GitClient, options: FlowOptions): Promise<Flo
   await setConfigValue(git, scopeArgs, 'gitflow.versiontag.prefix', preset.versionTagPrefix);
 
   for (const base of preset.bases) {
-    await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.type`, 'base');
-    if (base.parent) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.parent`, base.parent);
-    }
-    if (base.upstreamStrategy) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.upstreamstrategy`, base.upstreamStrategy);
-    }
-    if (base.downstreamStrategy) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.downstreamstrategy`, base.downstreamStrategy);
-    }
-    if (base.autoUpdate !== undefined) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${base.name}.autoupdate`, String(base.autoUpdate));
-    }
+    await writeBaseConfig(git, scopeArgs, base);
   }
 
   for (const topic of preset.topics) {
-    await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.type`, 'topic');
-    if (topic.parent) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.parent`, topic.parent);
-    }
-    if (topic.prefix) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.prefix`, topic.prefix);
-    }
-    if (topic.startPoint) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.startpoint`, topic.startPoint);
-    }
-    if (topic.upstreamStrategy) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.upstreamstrategy`, topic.upstreamStrategy);
-    }
-    if (topic.downstreamStrategy) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.downstreamstrategy`, topic.downstreamStrategy);
-    }
-    if (topic.tag !== undefined) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.tag`, String(topic.tag));
-    }
-    if (topic.tagPrefix) {
-      await setConfigValue(git, scopeArgs, `gitflow.branch.${topic.name}.tagprefix`, topic.tagPrefix);
-    }
-    await setConfigValue(git, scopeArgs, `gitflow.${topic.name}.finish.strategy`, topic.command.finishStrategy);
-    await setConfigValue(git, scopeArgs, `gitflow.${topic.name}.finish.fetch`, String(topic.command.fetchBeforeFinish));
-    await setConfigValue(git, scopeArgs, `gitflow.${topic.name}.finish.keep`, String(topic.command.keepBranch));
-    await setConfigValue(
-      git,
-      scopeArgs,
-      `gitflow.${topic.name}.finish.publish`,
-      String(topic.command.publishAfterFinish),
-    );
+    await writeTopicConfig(git, scopeArgs, topic);
   }
 
-  const createdBranches: string[] = [];
-  if (!options.noCreateBranches) {
-    for (const base of preset.bases) {
-      if (await branchExists(git, base.name)) {
-        continue;
-      }
-      if (base.parent) {
-        await git.raw(['branch', base.name, base.parent]);
-      } else {
-        await git.raw(['branch', base.name]);
-      }
-      createdBranches.push(base.name);
-    }
-  }
+  const createdBranches = options.noCreateBranches ? [] : await createMissingBaseBranches(git, preset.bases);
 
   const updatedState = await getFlowConfigState(git, options);
   const lines = [
@@ -2097,6 +2171,38 @@ async function writeBranchDefinition(
   }
 }
 
+async function updateDependentBranchReferences(
+  git: GitClient,
+  options: FlowOptions,
+  allBranches: readonly FlowBranchDefinition[],
+  previousName: string,
+  nextName: string,
+): Promise<void> {
+  for (const dependent of allBranches.filter(
+    branch => branch.parent === previousName || branch.startPoint === previousName,
+  )) {
+    const updatedDependent: FlowBranchDefinition = {
+      ...dependent,
+      parent: dependent.parent === previousName ? nextName : dependent.parent,
+      startPoint: dependent.startPoint === previousName ? nextName : dependent.startPoint,
+    };
+    await writeBranchDefinition(git, options, updatedDependent);
+  }
+}
+
+async function deleteBranchDefinitionConfig(git: GitClient, options: FlowOptions, branchName: string): Promise<void> {
+  const scopeArgs = getScopeArgs(options);
+  for (const property of FLOW_CONFIG_PROPERTIES) {
+    await unsetConfigValue(git, scopeArgs, `gitflow.branch.${branchName}.${property}`);
+  }
+  for (const property of FLOW_FINISH_PROPERTIES) {
+    await unsetConfigValue(git, scopeArgs, `gitflow.${branchName}.finish.${property}`);
+  }
+  for (const property of FLOW_FILTER_PROPERTIES) {
+    await unsetConfigValue(git, scopeArgs, `gitflow.${branchName}.filter.${property}`);
+  }
+}
+
 async function mutateConfig(
   git: GitClient,
   state: FlowConfigState,
@@ -2150,17 +2256,7 @@ async function mutateConfig(
     }
     const renamed = makeBranchDefinition(state, { ...options, name: options.newName }, existing);
     await writeBranchDefinition(git, options, renamed, existing.name);
-
-    for (const dependent of allBranches.filter(
-      branch => branch.parent === existing.name || branch.startPoint === existing.name,
-    )) {
-      const updatedDependent: FlowBranchDefinition = {
-        ...dependent,
-        parent: dependent.parent === existing.name ? renamed.name : dependent.parent,
-        startPoint: dependent.startPoint === existing.name ? renamed.name : dependent.startPoint,
-      };
-      await writeBranchDefinition(git, options, updatedDependent);
-    }
+    await updateDependentBranchReferences(git, options, allBranches, existing.name, renamed.name);
 
     return {
       markdown: `Renamed flow branch definition ${existing.name} to ${renamed.name}.`,
@@ -2171,16 +2267,7 @@ async function mutateConfig(
       } satisfies FlowConfigMutationResult,
     };
   }
-
-  for (const property of FLOW_CONFIG_PROPERTIES) {
-    await unsetConfigValue(git, getScopeArgs(options), `gitflow.branch.${existing.name}.${property}`);
-  }
-  for (const property of FLOW_FINISH_PROPERTIES) {
-    await unsetConfigValue(git, getScopeArgs(options), `gitflow.${existing.name}.finish.${property}`);
-  }
-  for (const property of FLOW_FILTER_PROPERTIES) {
-    await unsetConfigValue(git, getScopeArgs(options), `gitflow.${existing.name}.filter.${property}`);
-  }
+  await deleteBranchDefinitionConfig(git, options, existing.name);
 
   return {
     markdown: `Deleted flow branch definition ${existing.name}.`,
@@ -2312,15 +2399,7 @@ async function executeFinishStages(
       );
     } catch {
       await writeFinishState(git, current);
-      return {
-        completed: false,
-        state: current,
-        mergedInto: [],
-        deleted: false,
-        tagName: current.tagName,
-        hooks,
-        filters,
-      } satisfies FlowFinishResult;
+      return buildPausedFinishResult(current, hooks, filters, []);
     }
     current = { ...current, stage: 'tag' };
     await writeFinishState(git, current);
@@ -2342,52 +2421,11 @@ async function executeFinishStages(
     await writeFinishState(git, current);
   }
 
-  while (current.stage === 'checkout-backmerge' || current.stage === 'integrate-backmerge') {
-    const target = current.backmergeBranches[current.pendingBackmergeIndex];
-    if (!target) {
-      current = { ...current, stage: 'publish' };
-      await writeFinishState(git, current);
-      break;
-    }
-
-    if (current.stage === 'checkout-backmerge') {
-      await checkoutRefIfNeeded(git, target);
-      current = { ...current, stage: 'integrate-backmerge' };
-      await writeFinishState(git, current);
-    }
-
-    try {
-      await performIntegration(
-        git,
-        target,
-        current.branchName,
-        'merge',
-        false,
-        options.preserveMerges ?? topicDefinition.command.preserveMerges,
-      );
-    } catch {
-      await writeFinishState(git, current);
-      return {
-        completed: false,
-        state: current,
-        mergedInto: [current.parentBranch, ...current.backmergeBranches.slice(0, current.pendingBackmergeIndex)],
-        deleted: false,
-        tagName: current.tagName,
-        hooks,
-        filters,
-      } satisfies FlowFinishResult;
-    }
-
-    current = {
-      ...current,
-      pendingBackmergeIndex: current.pendingBackmergeIndex + 1,
-      stage:
-        current.pendingBackmergeIndex + 1 < current.backmergeBranches.length
-          ? 'checkout-backmerge'
-          : 'hook-post-finish',
-    };
-    await writeFinishState(git, current);
+  const backmergeResult = await processBackmergeStages(git, topicDefinition, options, current, hooks, filters);
+  if (backmergeResult.paused) {
+    return backmergeResult.result;
   }
+  current = backmergeResult.state;
 
   if (current.stage === 'hook-post-finish') {
     hooks.push(
@@ -2436,6 +2474,81 @@ async function executeFinishStages(
     hooks,
     filters,
   } satisfies FlowFinishResult;
+}
+
+function buildPausedFinishResult(
+  current: FlowFinishState,
+  hooks: readonly FlowHookExecutionResult[],
+  filters: readonly FlowFilterExecutionResult[],
+  mergedInto: readonly string[],
+): FlowFinishResult {
+  return {
+    completed: false,
+    state: current,
+    mergedInto,
+    deleted: false,
+    tagName: current.tagName,
+    hooks,
+    filters,
+  } satisfies FlowFinishResult;
+}
+
+async function processBackmergeStages(
+  git: GitClient,
+  topicDefinition: FlowTopicDefinition,
+  options: FlowOptions,
+  initialState: FlowFinishState,
+  hooks: readonly FlowHookExecutionResult[],
+  filters: readonly FlowFilterExecutionResult[],
+): Promise<{ paused: false; state: FlowFinishState } | { paused: true; result: FlowFinishResult }> {
+  let current = initialState;
+
+  while (current.stage === 'checkout-backmerge' || current.stage === 'integrate-backmerge') {
+    const target = current.backmergeBranches[current.pendingBackmergeIndex];
+    if (!target) {
+      current = { ...current, stage: 'publish' };
+      await writeFinishState(git, current);
+      break;
+    }
+
+    if (current.stage === 'checkout-backmerge') {
+      await checkoutRefIfNeeded(git, target);
+      current = { ...current, stage: 'integrate-backmerge' };
+      await writeFinishState(git, current);
+    }
+
+    try {
+      await performIntegration(
+        git,
+        target,
+        current.branchName,
+        'merge',
+        false,
+        options.preserveMerges ?? topicDefinition.command.preserveMerges,
+      );
+    } catch {
+      await writeFinishState(git, current);
+      return {
+        paused: true,
+        result: buildPausedFinishResult(current, hooks, filters, [
+          current.parentBranch,
+          ...current.backmergeBranches.slice(0, current.pendingBackmergeIndex),
+        ]),
+      };
+    }
+
+    current = {
+      ...current,
+      pendingBackmergeIndex: current.pendingBackmergeIndex + 1,
+      stage:
+        current.pendingBackmergeIndex + 1 < current.backmergeBranches.length
+          ? 'checkout-backmerge'
+          : 'hook-post-finish',
+    };
+    await writeFinishState(git, current);
+  }
+
+  return { paused: false, state: current };
 }
 
 async function finishTopic(
@@ -2542,6 +2655,53 @@ async function runTopicOperation(
   }
 }
 
+async function runOverviewOperation(git: GitClient, state: FlowConfigState): Promise<FlowActionResult> {
+  const overview = await buildOverview(git, state);
+  return {
+    markdown: renderOverview(overview),
+    data: overview,
+  };
+}
+
+async function runConfigOperation(
+  git: GitClient,
+  state: FlowConfigState,
+  options: FlowOptions,
+  configAction: FlowConfigAction | undefined,
+): Promise<FlowActionResult> {
+  if (!configAction) {
+    throw new Error('configAction is required for operation="config".');
+  }
+  return mutateConfig(git, state, options, configAction);
+}
+
+async function runTopicDispatch(
+  repoPath: string,
+  git: GitClient,
+  state: FlowConfigState,
+  options: FlowOptions,
+  topicAction: FlowTopicAction | undefined,
+  topicName: string | undefined,
+): Promise<FlowActionResult> {
+  if (!topicAction) {
+    throw new Error('topicAction is required for operation="topic".');
+  }
+  const topic = getTopicDefinition(state, topicName);
+  return runTopicOperation(repoPath, git, state, topicAction, topic, options);
+}
+
+async function runControlOperation(
+  repoPath: string,
+  git: GitClient,
+  state: FlowConfigState,
+  controlAction: FlowControlAction | undefined,
+): Promise<FlowActionResult> {
+  if (!controlAction) {
+    throw new Error('controlAction is required for operation="control".');
+  }
+  return continueOrAbort(repoPath, git, state, controlAction);
+}
+
 export async function runFlowAction(repoPath: string, options: FlowOptions): Promise<FlowActionResult> {
   const git = getGit(repoPath);
   const normalized = normalizeRequest(options);
@@ -2553,31 +2713,13 @@ export async function runFlowAction(repoPath: string, options: FlowOptions): Pro
   const state = await getFlowConfigState(git, options);
 
   switch (normalized.operation) {
-    case 'overview': {
-      const overview = await buildOverview(git, state);
-      return {
-        markdown: renderOverview(overview),
-        data: overview,
-      };
-    }
-    case 'config': {
-      if (!normalized.configAction) {
-        throw new Error('configAction is required for operation="config".');
-      }
-      return mutateConfig(git, state, options, normalized.configAction);
-    }
-    case 'topic': {
-      if (!normalized.topicAction) {
-        throw new Error('topicAction is required for operation="topic".');
-      }
-      const topic = getTopicDefinition(state, normalized.topic);
-      return runTopicOperation(repoPath, git, state, normalized.topicAction, topic, options);
-    }
-    case 'control': {
-      if (!normalized.controlAction) {
-        throw new Error('controlAction is required for operation="control".');
-      }
-      return continueOrAbort(repoPath, git, state, normalized.controlAction);
-    }
+    case 'overview':
+      return runOverviewOperation(git, state);
+    case 'config':
+      return runConfigOperation(git, state, options, normalized.configAction);
+    case 'topic':
+      return runTopicDispatch(repoPath, git, state, options, normalized.topicAction, normalized.topic);
+    case 'control':
+      return runControlOperation(repoPath, git, state, normalized.controlAction);
   }
 }

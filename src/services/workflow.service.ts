@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getGit, toGitError } from '../git/client.js';
+import { getGit, toGitError, validatePathArguments } from '../git/client.js';
 import type {
   WorkflowDefinition,
   WorkflowExecutionStatus,
@@ -41,6 +41,24 @@ export interface WorkflowActionResult {
 interface ActiveWorkflow {
   readonly definition: WorkflowDefinition;
   readonly state: WorkflowState;
+}
+
+function assertSafeRefLike(value: string, name: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    throw new Error(`${name} cannot be empty.`);
+  }
+  if (trimmed.startsWith('-')) {
+    throw new Error(`${name} cannot start with '-'.`);
+  }
+  if (trimmed.includes('\u0000') || trimmed.includes('\n') || trimmed.includes('\r')) {
+    throw new Error(`${name} contains invalid control characters.`);
+  }
+  return trimmed;
+}
+
+function assertSafeRemoteName(value: string): string {
+  return assertSafeRefLike(value, 'remote');
 }
 
 function classifyStatus(errorMessage: string): WorkflowExecutionStatus {
@@ -112,7 +130,7 @@ function toStepResult(index: number, name: string): WorkflowStepResult {
 }
 
 function buildSnapshotDefinition(options: WorkflowOptions): WorkflowDefinition {
-  const baseBranch = options.baseBranch ?? 'main';
+  const baseBranch = assertSafeRefLike(options.baseBranch ?? 'main', 'baseBranch');
   const logCount = options.logCount ?? 12;
 
   const steps: readonly WorkflowStepDefinition[] = [
@@ -158,15 +176,16 @@ function buildSnapshotDefinition(options: WorkflowOptions): WorkflowDefinition {
   };
 }
 
-function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
+function buildReplayDefinition(repoPath: string, options: WorkflowOptions): WorkflowDefinition {
   const mode = options.mode ?? 'cherry-pick';
   const steps: WorkflowStepDefinition[] = [];
 
   if (options.targetBranch) {
+    const targetBranch = assertSafeRefLike(options.targetBranch, 'targetBranch');
     steps.push({
       kind: 'gitRaw',
-      name: `checkout_${options.targetBranch}`,
-      args: ['checkout', options.targetBranch],
+      name: `checkout_${targetBranch}`,
+      args: ['checkout', targetBranch],
       readOnly: false,
     });
   }
@@ -175,10 +194,11 @@ function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
     if (!options.confirmHardReset) {
       throw new Error('confirmHardReset=true is required when resetTo is provided.');
     }
+    const resetTo = assertSafeRefLike(options.resetTo, 'resetTo');
     steps.push({
       kind: 'gitRaw',
-      name: `hard_reset_${options.resetTo}`,
-      args: ['reset', '--hard', options.resetTo],
+      name: `hard_reset_${resetTo}`,
+      args: ['reset', '--hard', resetTo],
       readOnly: false,
       destructive: true,
     });
@@ -191,10 +211,11 @@ function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
     }
 
     for (const commit of commits) {
+      const safeCommit = assertSafeRefLike(commit, 'sourceCommits item');
       steps.push({
         kind: 'gitRaw',
-        name: `cherry_pick_${commit}`,
-        args: ['cherry-pick', commit],
+        name: `cherry_pick_${safeCommit}`,
+        args: ['cherry-pick', safeCommit],
         readOnly: false,
         resumable: {
           continueArgs: ['cherry-pick', '--continue'],
@@ -208,11 +229,13 @@ function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
       throw new Error('patchFiles is required for replay mode am.');
     }
 
+    const safePatchFiles = validatePathArguments(repoPath, patchFiles);
+
     const args = ['am'];
     if (options.threeWay ?? true) {
       args.push('--3way');
     }
-    args.push(...patchFiles);
+    args.push(...safePatchFiles);
 
     steps.push({
       kind: 'gitRaw',
@@ -227,7 +250,7 @@ function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
   }
 
   if (options.publish) {
-    const remote = options.remote ?? 'origin';
+    const remote = assertSafeRemoteName(options.remote ?? 'origin');
     const pushArgs = ['push'];
     if (options.setUpstream) {
       pushArgs.push('--set-upstream');
@@ -238,7 +261,7 @@ function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
     pushArgs.push(remote);
 
     if (options.targetBranch) {
-      pushArgs.push(options.targetBranch);
+      pushArgs.push(assertSafeRefLike(options.targetBranch, 'targetBranch'));
     }
 
     steps.push({
@@ -255,9 +278,10 @@ function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
     steps,
     params: {
       mode,
-      targetBranch: options.targetBranch ?? null,
+      targetBranch: options.targetBranch ? assertSafeRefLike(options.targetBranch, 'targetBranch') : null,
       sourceCommits: options.sourceCommits ?? [],
-      patchFiles: options.patchFiles ?? [],
+      patchFiles:
+        mode === 'am' ? validatePathArguments(repoPath, options.patchFiles ?? []) : (options.patchFiles ?? []),
       publish: options.publish ?? false,
       remote: options.remote ?? null,
     },
@@ -265,7 +289,7 @@ function buildReplayDefinition(options: WorkflowOptions): WorkflowDefinition {
 }
 
 function buildBranchSurgeryDefinition(options: WorkflowOptions): WorkflowDefinition {
-  const targetBranch = options.targetBranch;
+  const targetBranch = options.targetBranch ? assertSafeRefLike(options.targetBranch, 'targetBranch') : undefined;
   if (!targetBranch) {
     throw new Error('targetBranch is required for branch_surgery workflow.');
   }
@@ -274,7 +298,9 @@ function buildBranchSurgeryDefinition(options: WorkflowOptions): WorkflowDefinit
     throw new Error('confirmHardReset=true is required when resetTo is provided.');
   }
 
-  const backupBranch = options.backupBranch ?? `backup/${targetBranch.replace(/\//g, '-')}`;
+  const backupBranch = options.backupBranch
+    ? assertSafeRefLike(options.backupBranch, 'backupBranch')
+    : `backup/${targetBranch.replaceAll('/', '-')}`;
   const steps: WorkflowStepDefinition[] = [
     {
       kind: 'gitRaw',
@@ -291,20 +317,22 @@ function buildBranchSurgeryDefinition(options: WorkflowOptions): WorkflowDefinit
   ];
 
   if (options.resetTo) {
+    const resetTo = assertSafeRefLike(options.resetTo, 'resetTo');
     steps.push({
       kind: 'gitRaw',
-      name: `hard_reset_${options.resetTo}`,
-      args: ['reset', '--hard', options.resetTo],
+      name: `hard_reset_${resetTo}`,
+      args: ['reset', '--hard', resetTo],
       readOnly: false,
       destructive: true,
     });
   }
 
   for (const commit of options.sourceCommits ?? []) {
+    const safeCommit = assertSafeRefLike(commit, 'sourceCommits item');
     steps.push({
       kind: 'gitRaw',
-      name: `cherry_pick_${commit}`,
-      args: ['cherry-pick', commit],
+      name: `cherry_pick_${safeCommit}`,
+      args: ['cherry-pick', safeCommit],
       readOnly: false,
       resumable: {
         continueArgs: ['cherry-pick', '--continue'],
@@ -314,7 +342,7 @@ function buildBranchSurgeryDefinition(options: WorkflowOptions): WorkflowDefinit
   }
 
   if (options.publish) {
-    const remote = options.remote ?? 'origin';
+    const remote = assertSafeRemoteName(options.remote ?? 'origin');
     const pushArgs = ['push'];
     if (options.setUpstream) {
       pushArgs.push('--set-upstream');
@@ -347,12 +375,12 @@ function buildBranchSurgeryDefinition(options: WorkflowOptions): WorkflowDefinit
 }
 
 function buildPublishDefinition(options: WorkflowOptions): WorkflowDefinition {
-  const targetBranch = options.targetBranch;
+  const targetBranch = options.targetBranch ? assertSafeRefLike(options.targetBranch, 'targetBranch') : undefined;
   if (!targetBranch) {
     throw new Error('targetBranch is required for publish workflow.');
   }
 
-  const remote = options.remote ?? 'origin';
+  const remote = assertSafeRemoteName(options.remote ?? 'origin');
   const steps: WorkflowStepDefinition[] = [];
 
   if (options.fetchFirst ?? true) {
@@ -373,10 +401,11 @@ function buildPublishDefinition(options: WorkflowOptions): WorkflowDefinition {
   });
 
   if (options.rebaseOnto) {
+    const rebaseOnto = assertSafeRefLike(options.rebaseOnto, 'rebaseOnto');
     steps.push({
       kind: 'gitRaw',
-      name: `rebase_onto_${options.rebaseOnto}`,
-      args: ['rebase', options.rebaseOnto],
+      name: `rebase_onto_${rebaseOnto}`,
+      args: ['rebase', rebaseOnto],
       readOnly: false,
       resumable: {
         continueArgs: ['rebase', '--continue'],
@@ -416,12 +445,12 @@ function buildPublishDefinition(options: WorkflowOptions): WorkflowDefinition {
   };
 }
 
-function buildDefinition(options: WorkflowOptions): WorkflowDefinition {
+function buildDefinition(repoPath: string, options: WorkflowOptions): WorkflowDefinition {
   switch (options.workflow) {
     case 'snapshot':
       return buildSnapshotDefinition(options);
     case 'replay':
-      return buildReplayDefinition(options);
+      return buildReplayDefinition(repoPath, options);
     case 'branch_surgery':
       return buildBranchSurgeryDefinition(options);
     case 'publish':
@@ -510,7 +539,7 @@ async function execute(repoPath: string, active: ActiveWorkflow): Promise<Workfl
 }
 
 async function continuePaused(repoPath: string, state: WorkflowState): Promise<WorkflowState> {
-  const definition = buildDefinition({
+  const definition = buildDefinition(repoPath, {
     action: 'start',
     workflow: state.workflow,
     ...(state.params as Partial<WorkflowOptions>),
@@ -568,7 +597,7 @@ async function continuePaused(repoPath: string, state: WorkflowState): Promise<W
 }
 
 async function abortActive(repoPath: string, state: WorkflowState): Promise<WorkflowState> {
-  const definition = buildDefinition({
+  const definition = buildDefinition(repoPath, {
     action: 'start',
     workflow: state.workflow,
     ...(state.params as Partial<WorkflowOptions>),
@@ -647,7 +676,7 @@ export async function runWorkflowAction(repoPath: string, options: WorkflowOptio
       );
     }
 
-    const definition = buildDefinition(options);
+    const definition = buildDefinition(repoPath, options);
     const initial = buildInitialState(definition);
     await writeState(repoPath, initial);
     const completedState = await execute(repoPath, {

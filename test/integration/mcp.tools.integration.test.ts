@@ -340,13 +340,7 @@ describe('git_flow tool', () => {
   });
 
   it('accepts the canonical operation contract', async () => {
-    mockGit.raw.mockImplementation(async (args: string[]) => {
-      if (args[0] === 'config' && args[1] === '--get-regexp') {
-        return '';
-      }
-
-      return '';
-    });
+    mockGit.raw.mockResolvedValue('');
 
     const result = await callTool(server, 'git_flow', {
       repo_path: '/repo',

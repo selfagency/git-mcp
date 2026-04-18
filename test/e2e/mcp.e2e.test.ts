@@ -55,7 +55,7 @@ function waitForResponse(child: ChildProcess, id: number, timeoutMs = 8000): Pro
           continue;
         }
         const response = parsed as JsonRpcResponse;
-        if (response && response.id === id) {
+        if (response?.id === id) {
           clearTimeout(timer);
           child.stdout!.off('data', onData);
           resolve(response);

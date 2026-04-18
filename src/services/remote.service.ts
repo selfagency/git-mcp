@@ -32,6 +32,12 @@ export interface PushOptions {
   readonly tags: boolean;
 }
 
+function formatRemoteBranch(remote?: string, branch?: string): string {
+  const remoteLabel = remote ?? 'tracking remote';
+  const branchSuffix = branch ? `/${branch}` : '';
+  return `${remoteLabel}${branchSuffix}`;
+}
+
 function sanitizeRemoteUrl(url: string | undefined): string | undefined {
   if (!url) return url;
   try {
@@ -124,7 +130,9 @@ export async function pullRemote(repoPath: string, options: PullOptions): Promis
   }
 
   await git.pull(options.remote, options.branch, pullOptions);
-  return `Pulled ${options.remote ?? 'tracking remote'}${options.branch ? `/${options.branch}` : ''}${options.rebase ? ' with rebase' : ''}.`;
+  const target = formatRemoteBranch(options.remote, options.branch);
+  const suffix = options.rebase ? ' with rebase' : '';
+  return `Pulled ${target}${suffix}.`;
 }
 
 export async function pushRemote(repoPath: string, options: PushOptions): Promise<string> {
@@ -165,5 +173,5 @@ export async function pushRemote(repoPath: string, options: PushOptions): Promis
   }
 
   await git.push(options.remote, options.branch, pushOptions);
-  return `Pushed ${options.remote ?? 'tracking remote'}${options.branch ? `/${options.branch}` : ''}.`;
+  return `Pushed ${formatRemoteBranch(options.remote, options.branch)}.`;
 }

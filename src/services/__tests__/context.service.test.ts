@@ -161,7 +161,7 @@ describe('setConfig', () => {
     const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
     vi.mocked(getGit).mockReturnValue(git as any);
     const result = await setConfig('/repo', 'user.name', 'Alice');
-    expect(git.raw).toHaveBeenCalledWith(['config', 'user.name', 'Alice']);
+    expect(git.raw).toHaveBeenCalledWith(['config', '--local', 'user.name', 'Alice']);
     expect(result).toBe('Set user.name.');
   });
 

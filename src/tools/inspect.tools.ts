@@ -18,9 +18,10 @@ function toText(content: unknown, responseFormat: 'markdown' | 'json'): string {
   return renderContent(content, responseFormat);
 }
 
+let gitStatusRegistered = false;
+
 export function registerInspectTools(server: McpServer): void {
-  const registeredTools = (server as unknown as { _registeredTools?: Record<string, unknown> })._registeredTools;
-  if (!registeredTools || !Object.hasOwn(registeredTools, 'git_status')) {
+  if (!gitStatusRegistered) {
     server.registerTool(
       'git_status',
       {
@@ -57,6 +58,7 @@ export function registerInspectTools(server: McpServer): void {
         }
       },
     );
+    gitStatusRegistered = true;
   }
 
   server.registerTool(

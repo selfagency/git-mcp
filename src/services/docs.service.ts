@@ -19,13 +19,13 @@ function stripHtml(html: string): string {
   text = text.replace(/<[^>]+>/g, ' ');
   // Decode common HTML entities
   text = text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)));
+    .replaceAll('&amp;', '&')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)));
   // Collapse whitespace
   return text.replace(/\s+/g, ' ').trim();
 }

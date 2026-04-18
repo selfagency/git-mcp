@@ -71,8 +71,10 @@ async function main(): Promise<void> {
   await server.connect(transport);
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   console.error(`Server startup failed: ${message}`);
   process.exit(1);
-});
+}
