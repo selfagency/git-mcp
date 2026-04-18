@@ -1,5 +1,7 @@
 # git-mcp
 
+[![CI](https://github.com/selfagency/git-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/selfagency/git-mcp/actions/workflows/ci.yml) [![codecov](https://codecov.io/gh/selfagency/git-mcp/graph/badge.svg?token=LblUcPGFK7)](https://codecov.io/gh/selfagency/git-mcp) ![NPM Version](https://img.shields.io/npm/v/@selfagency/git-mcp)
+
 > A Git [MCP](https://modelcontextprotocol.io) server that doesn't suck
 
 Exposes the full Git workflow to any MCP-compatible AI agent — inspect, write, branch, remote, stash, rebase, LFS, git-flow, documentation lookup, and more. Designed to be safe by default, composable, and fast. Powered by [`simple-git`](https://github.com/steveukx/git-js).
