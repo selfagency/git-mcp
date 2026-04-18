@@ -1075,7 +1075,7 @@ function selectionFromCurrentBranch(
   currentBranch: string | undefined,
   topic: FlowTopicDefinition,
 ): FlowTopicSelection | null {
-  if (!currentBranch || !currentBranch.startsWith(topic.prefix ?? '')) {
+  if (!currentBranch?.startsWith(topic.prefix ?? '')) {
     return null;
   }
 
@@ -1138,7 +1138,7 @@ async function resolveTopicBranchSelection(
     );
   }
 
-  return candidates[0]!;
+  return candidates[0];
 }
 
 function globMatches(value: string, pattern: string): boolean {

@@ -123,7 +123,7 @@ describe('validatePathArgument', () => {
 
   it('normalizes windows separators', () => {
     vi.mocked(existsSync).mockReturnValue(true);
-    expect(validatePathArgument('/repo', 'src\\index.ts')).toBe('src/index.ts');
+    expect(validatePathArgument('/repo', String.raw`src\index.ts`)).toBe('src/index.ts');
   });
 
   it('rejects absolute paths', () => {

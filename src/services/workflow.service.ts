@@ -83,7 +83,8 @@ function formatState(state: WorkflowState): string {
 
   lines.push('', 'Steps:');
   for (const step of state.steps) {
-    lines.push(`- [${step.status}] #${step.index + 1} ${step.name}${step.error ? ` — ${step.error}` : ''}`);
+    const errorSuffix = step.error ? ` — ${step.error}` : '';
+    lines.push(`- [${step.status}] #${step.index + 1} ${step.name}${errorSuffix}`);
   }
 
   return lines.join('\n');
@@ -127,6 +128,61 @@ function toStepResult(index: number, name: string): WorkflowStepResult {
     name,
     status: 'pending',
   };
+}
+
+function buildPublishStep(
+  remote: string,
+  options: { setUpstream?: boolean; forceWithLease?: boolean; targetBranch?: string },
+): WorkflowStepDefinition {
+  const pushArgs = ['push'];
+  if (options.setUpstream) pushArgs.push('--set-upstream');
+  if (options.forceWithLease) pushArgs.push('--force-with-lease');
+  pushArgs.push(remote);
+  if (options.targetBranch) pushArgs.push(options.targetBranch);
+  return {
+    kind: 'gitRaw',
+    name: `publish_${remote}`,
+    args: pushArgs,
+    readOnly: false,
+    openWorld: true,
+  };
+}
+
+function buildCherryPickReplaySteps(commits: readonly string[]): WorkflowStepDefinition[] {
+  return commits.map(commit => {
+    const safeCommit = assertSafeRefLike(commit, 'sourceCommits item');
+    return {
+      kind: 'gitRaw' as const,
+      name: `cherry_pick_${safeCommit}`,
+      args: ['cherry-pick', safeCommit],
+      readOnly: false,
+      resumable: {
+        continueArgs: ['cherry-pick', '--continue'],
+        abortArgs: ['cherry-pick', '--abort'],
+      },
+    };
+  });
+}
+
+function buildAmReplaySteps(
+  repoPath: string,
+  patchFiles: readonly string[],
+  threeWay: boolean,
+): WorkflowStepDefinition[] {
+  const safePatchFiles = validatePathArguments(repoPath, [...patchFiles]);
+  const args = ['am', ...(threeWay ? ['--3way'] : []), ...safePatchFiles];
+  return [
+    {
+      kind: 'gitRaw',
+      name: 'apply_patch_series',
+      args,
+      readOnly: false,
+      resumable: {
+        continueArgs: ['am', '--continue'],
+        abortArgs: ['am', '--abort'],
+      },
+    },
+  ];
 }
 
 function buildSnapshotDefinition(options: WorkflowOptions): WorkflowDefinition {
@@ -209,68 +265,25 @@ function buildReplayDefinition(repoPath: string, options: WorkflowOptions): Work
     if (commits.length === 0) {
       throw new Error('sourceCommits is required for replay mode cherry-pick.');
     }
-
-    for (const commit of commits) {
-      const safeCommit = assertSafeRefLike(commit, 'sourceCommits item');
-      steps.push({
-        kind: 'gitRaw',
-        name: `cherry_pick_${safeCommit}`,
-        args: ['cherry-pick', safeCommit],
-        readOnly: false,
-        resumable: {
-          continueArgs: ['cherry-pick', '--continue'],
-          abortArgs: ['cherry-pick', '--abort'],
-        },
-      });
-    }
+    steps.push(...buildCherryPickReplaySteps(commits));
   } else {
     const patchFiles = options.patchFiles ?? [];
     if (patchFiles.length === 0) {
       throw new Error('patchFiles is required for replay mode am.');
     }
-
-    const safePatchFiles = validatePathArguments(repoPath, patchFiles);
-
-    const args = ['am'];
-    if (options.threeWay ?? true) {
-      args.push('--3way');
-    }
-    args.push(...safePatchFiles);
-
-    steps.push({
-      kind: 'gitRaw',
-      name: 'apply_patch_series',
-      args,
-      readOnly: false,
-      resumable: {
-        continueArgs: ['am', '--continue'],
-        abortArgs: ['am', '--abort'],
-      },
-    });
+    steps.push(...buildAmReplaySteps(repoPath, patchFiles, options.threeWay ?? true));
   }
 
   if (options.publish) {
     const remote = assertSafeRemoteName(options.remote ?? 'origin');
-    const pushArgs = ['push'];
-    if (options.setUpstream) {
-      pushArgs.push('--set-upstream');
-    }
-    if (options.forceWithLease) {
-      pushArgs.push('--force-with-lease');
-    }
-    pushArgs.push(remote);
-
-    if (options.targetBranch) {
-      pushArgs.push(assertSafeRefLike(options.targetBranch, 'targetBranch'));
-    }
-
-    steps.push({
-      kind: 'gitRaw',
-      name: `publish_${remote}`,
-      args: pushArgs,
-      readOnly: false,
-      openWorld: true,
-    });
+    const targetBranch = options.targetBranch ? assertSafeRefLike(options.targetBranch, 'targetBranch') : undefined;
+    steps.push(
+      buildPublishStep(remote, {
+        setUpstream: options.setUpstream,
+        forceWithLease: options.forceWithLease,
+        targetBranch,
+      }),
+    );
   }
 
   return {
@@ -328,36 +341,18 @@ function buildBranchSurgeryDefinition(options: WorkflowOptions): WorkflowDefinit
   }
 
   for (const commit of options.sourceCommits ?? []) {
-    const safeCommit = assertSafeRefLike(commit, 'sourceCommits item');
-    steps.push({
-      kind: 'gitRaw',
-      name: `cherry_pick_${safeCommit}`,
-      args: ['cherry-pick', safeCommit],
-      readOnly: false,
-      resumable: {
-        continueArgs: ['cherry-pick', '--continue'],
-        abortArgs: ['cherry-pick', '--abort'],
-      },
-    });
+    steps.push(...buildCherryPickReplaySteps([commit]));
   }
 
   if (options.publish) {
     const remote = assertSafeRemoteName(options.remote ?? 'origin');
-    const pushArgs = ['push'];
-    if (options.setUpstream) {
-      pushArgs.push('--set-upstream');
-    }
-    if (options.forceWithLease) {
-      pushArgs.push('--force-with-lease');
-    }
-    pushArgs.push(remote, targetBranch);
-    steps.push({
-      kind: 'gitRaw',
-      name: `publish_${remote}`,
-      args: pushArgs,
-      readOnly: false,
-      openWorld: true,
-    });
+    steps.push(
+      buildPublishStep(remote, {
+        setUpstream: options.setUpstream,
+        forceWithLease: options.forceWithLease,
+        targetBranch,
+      }),
+    );
   }
 
   return {
@@ -496,7 +491,7 @@ async function execute(repoPath: string, active: ActiveWorkflow): Promise<Workfl
   let state = active.state;
 
   for (let index = state.currentStep; index < active.definition.steps.length; index += 1) {
-    const step = active.definition.steps[index]!;
+    const step = active.definition.steps[index];
 
     try {
       const output = await runStep(repoPath, step);

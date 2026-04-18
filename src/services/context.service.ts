@@ -88,9 +88,9 @@ const SENSITIVE_KEY_PATTERNS: readonly RegExp[] = [/(password|token|secret|auth|
 
 const TOKEN_VALUE_PATTERNS: readonly RegExp[] = [
   /\b[0-9a-f]{40,}\b/i,
-  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/i,
-  /\bglpat-[A-Za-z0-9_-]{20,}\b/i,
-  /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/i,
+  /\bgh[pousr]_[A-Z0-9]{20,}\b/i,
+  /\bglpat-[A-Z0-9_-]{20,}\b/i,
+  /\bxox[baprs]-[A-Z0-9-]{10,}\b/i,
 ];
 
 function isBlockedConfigKey(key: string): boolean {

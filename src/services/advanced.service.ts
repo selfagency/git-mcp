@@ -135,6 +135,23 @@ export async function runCherryPickAction(repoPath: string, options: CherryPickA
   return output.trim() || `Cherry-picked ${options.ref}.`;
 }
 
+function resolveBisectRunArgs(options: BisectActionOptions): readonly string[] {
+  if (options.command && SHELL_META_PATTERN.test(options.command)) {
+    throw new Error('command contains shell metacharacters. Use command_args for bisect run.');
+  }
+
+  if (options.command && /\s/.test(options.command)) {
+    throw new Error('command must be a single executable token. Use command_args to pass arguments.');
+  }
+
+  const commandArgs = options.commandArgs ?? (options.command ? [options.command] : undefined);
+  if (!commandArgs || commandArgs.length === 0) {
+    throw new Error('command_args (or command) is required for bisect run.');
+  }
+
+  return commandArgs;
+}
+
 export async function runBisectAction(repoPath: string, options: BisectActionOptions): Promise<string> {
   const git = getGit(repoPath);
 
@@ -161,19 +178,7 @@ export async function runBisectAction(repoPath: string, options: BisectActionOpt
       return output.trim() || 'Skipped current bisect commit.';
     }
     case 'run': {
-      if (options.command && SHELL_META_PATTERN.test(options.command)) {
-        throw new Error('command contains shell metacharacters. Use command_args for bisect run.');
-      }
-
-      if (options.command && /\s/.test(options.command)) {
-        throw new Error('command must be a single executable token. Use command_args to pass arguments.');
-      }
-
-      const commandArgs = options.commandArgs ?? (options.command ? [options.command] : undefined);
-      if (!commandArgs || commandArgs.length === 0) {
-        throw new Error('command_args (or command) is required for bisect run.');
-      }
-
+      const commandArgs = resolveBisectRunArgs(options);
       const output = await git.raw(['bisect', 'run', ...commandArgs]);
       return output.trim() || 'Bisect run completed.';
     }

@@ -1,19 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchGitManPage, searchGitDocs } from '../docs.service.js';
 
-const originalFetch = global.fetch;
+const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
   vi.restoreAllMocks();
 });
 
 afterEach(() => {
-  global.fetch = originalFetch;
+  globalThis.fetch = originalFetch;
 });
 
 describe('searchGitDocs', () => {
   it('parses result-list search entries', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       text: async () => `
         <html>
@@ -36,7 +36,7 @@ describe('searchGitDocs', () => {
   });
 
   it('falls back to docs links when result-list is absent', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       text: async () => `
         <html>
@@ -50,14 +50,14 @@ describe('searchGitDocs', () => {
   });
 
   it('throws when upstream returns non-ok', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 } as Response);
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 } as Response);
     await expect(searchGitDocs('status')).rejects.toThrow('HTTP 503');
   });
 });
 
 describe('fetchGitManPage', () => {
   it('normalizes command and returns markdown body', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       text: async () => `
         <html>
@@ -75,7 +75,7 @@ describe('fetchGitManPage', () => {
   });
 
   it('throws a specific message for 404', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 } as Response);
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 } as Response);
     await expect(fetchGitManPage('notacommand')).rejects.toThrow('No man page found');
   });
 });

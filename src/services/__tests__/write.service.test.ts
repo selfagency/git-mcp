@@ -7,8 +7,7 @@ vi.mock('../../git/client.js', () => ({
   toGitError: vi.fn((e: unknown) => ({ kind: 'unknown', message: String(e) })),
 }));
 
-import { getGit } from '../../git/client.js';
-import { validatePathArguments } from '../../git/client.js';
+import { getGit, validatePathArguments } from '../../git/client.js';
 import { addFiles, commitChanges, resetChanges, restoreFiles, revertCommit } from '../write.service.js';
 
 function makeGit(overrides: Record<string, unknown> = {}) {
