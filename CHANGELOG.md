@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-04-18
+
+## What's Changed
+
+- feat: harden git operations and expand coverage by @selfagency in https://github.com/selfagency/git-mcp/pull/9
+
+**Full Changelog**: https://github.com/selfagency/git-mcp/compare/v0.2.1...v0.2.2
+
+_Source: changes from v0.2.1 to v0.2.2._
+
 ## [0.2.1] - 2026-04-17
 
 ## What's Changed
