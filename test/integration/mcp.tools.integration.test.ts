@@ -53,6 +53,8 @@ const mockGit = vi.hoisted(() => ({
 vi.mock('../../src/git/client.js', () => ({
   getGit: vi.fn().mockReturnValue(mockGit),
   validateRepoPath: vi.fn((p: string) => p),
+  validatePathArgument: vi.fn((_: string, filePath: string) => filePath),
+  validatePathArguments: vi.fn((_: string, paths: string[]) => paths),
   toGitError: (e: unknown) => {
     const msg = e instanceof Error ? e.message : String(e);
     return { kind: 'unknown', message: msg };
@@ -61,6 +63,7 @@ vi.mock('../../src/git/client.js', () => ({
 
 import { registerFlowTools } from '../../src/tools/flow.tools.js';
 import { registerGroupedTools } from '../../src/tools/grouped.tools.js';
+import { registerWorkflowTools } from '../../src/tools/workflow.tools.js';
 
 // ---------------------------------------------------------------------------
 // Helper to create a test MCP server and invoke a tool
@@ -69,6 +72,7 @@ function createTestServer() {
   const server = new McpServer({ name: 'test', version: '0.0.0' });
   registerGroupedTools(server);
   registerFlowTools(server);
+  registerWorkflowTools(server);
   return server;
 }
 
@@ -336,13 +340,7 @@ describe('git_flow tool', () => {
   });
 
   it('accepts the canonical operation contract', async () => {
-    mockGit.raw.mockImplementation(async (args: string[]) => {
-      if (args[0] === 'config' && args[1] === '--get-regexp') {
-        return '';
-      }
-
-      return '';
-    });
+    mockGit.raw.mockResolvedValue('');
 
     const result = await callTool(server, 'git_flow', {
       repo_path: '/repo',
@@ -363,6 +361,64 @@ describe('git_flow tool', () => {
       action: 'add',
       branch: { name: 'qa', kind: 'base' },
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// git_workflow
+// ---------------------------------------------------------------------------
+describe('git_workflow tool', () => {
+  it('lists supported workflows', async () => {
+    const result = await callTool(server, 'git_workflow', {
+      repo_path: '/repo',
+      action: 'list',
+      response_format: 'json',
+      log_count: 12,
+      mode: 'cherry-pick',
+      three_way: true,
+      confirm_hard_reset: false,
+      publish: false,
+      force_with_lease: false,
+      set_upstream: false,
+      fetch_first: true,
+    });
+
+    expect(result.content[0].type).toBe('text');
+    expect(result.structuredContent.workflows).toContain('snapshot');
+  });
+
+  it('runs snapshot workflow', async () => {
+    mockGit.raw.mockImplementation(async (args: string[]) => {
+      if (args[0] === 'config' && args[1] === '--local' && args[2] === '--get') {
+        throw new Error('not found');
+      }
+
+      if (args[0] === 'remote') return 'origin\thttps://example.com/repo.git (fetch)';
+      if (args[0] === 'branch') return '* main 1234567 [origin/main]';
+      if (args[0] === 'merge-base') return '1234567';
+      if (args[0] === 'log') return '* 1234567 init';
+      if (args[0] === 'status') return ' M src/index.ts';
+      return '';
+    });
+
+    const result = await callTool(server, 'git_workflow', {
+      repo_path: '/repo',
+      action: 'start',
+      workflow: 'snapshot',
+      base_branch: 'origin/main',
+      log_count: 5,
+      mode: 'cherry-pick',
+      three_way: true,
+      confirm_hard_reset: false,
+      publish: false,
+      force_with_lease: false,
+      set_upstream: false,
+      fetch_first: true,
+      response_format: 'json',
+    });
+
+    expect(result.content[0].type).toBe('text');
+    expect(result.structuredContent.workflow).toBe('snapshot');
   });
 });
 

@@ -3,12 +3,10 @@ import { z } from 'zod';
 import { toGitError } from '../git/client.js';
 import { ResponseFormatSchema } from '../schemas/index.js';
 import { fetchGitManPage, searchGitDocs } from '../services/docs.service.js';
+import { renderContent } from './render.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
-  if (typeof content === 'string' && format === 'markdown') {
-    return content;
-  }
-  return JSON.stringify(content, null, 2);
+  return renderContent(content, format);
 }
 
 export function registerDocsTools(server: McpServer): void {

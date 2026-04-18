@@ -32,13 +32,32 @@ export interface PushOptions {
   readonly tags: boolean;
 }
 
+function formatRemoteBranch(remote?: string, branch?: string): string {
+  const remoteLabel = remote ?? 'tracking remote';
+  const branchSuffix = branch ? `/${branch}` : '';
+  return `${remoteLabel}${branchSuffix}`;
+}
+
 function sanitizeRemoteUrl(url: string | undefined): string | undefined {
   if (!url) return url;
   try {
     const parsed = new URL(url);
-    if (!parsed.username && !parsed.password) return url;
     parsed.username = '';
     parsed.password = '';
+
+    // Redact common credential-like query parameters while preserving key names.
+    for (const key of parsed.searchParams.keys()) {
+      if (/(token|auth|password|secret|key)/i.test(key)) {
+        parsed.searchParams.set(key, '***');
+      }
+    }
+
+    // Redact opaque token-like path segments often used by some hosted providers.
+    parsed.pathname = parsed.pathname
+      .split('/')
+      .map(segment => (/^[A-Za-z0-9_-]{20,}$/.test(segment) ? '***' : segment))
+      .join('/');
+
     return parsed.toString();
   } catch {
     // SCP-style URLs (e.g. git@github.com:org/repo.git) are not parseable by URL
@@ -111,7 +130,9 @@ export async function pullRemote(repoPath: string, options: PullOptions): Promis
   }
 
   await git.pull(options.remote, options.branch, pullOptions);
-  return `Pulled ${options.remote ?? 'tracking remote'}${options.branch ? `/${options.branch}` : ''}${options.rebase ? ' with rebase' : ''}.`;
+  const target = formatRemoteBranch(options.remote, options.branch);
+  const suffix = options.rebase ? ' with rebase' : '';
+  return `Pulled ${target}${suffix}.`;
 }
 
 export async function pushRemote(repoPath: string, options: PushOptions): Promise<string> {
@@ -152,5 +173,5 @@ export async function pushRemote(repoPath: string, options: PushOptions): Promis
   }
 
   await git.push(options.remote, options.branch, pushOptions);
-  return `Pushed ${options.remote ?? 'tracking remote'}${options.branch ? `/${options.branch}` : ''}.`;
+  return `Pushed ${formatRemoteBranch(options.remote, options.branch)}.`;
 }

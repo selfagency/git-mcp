@@ -15,13 +15,10 @@ import {
   ResponseFormatSchema,
 } from '../schemas/index.js';
 import { runFlowAction, type FlowLegacyAction, type FlowOperation } from '../services/flow.service.js';
+import { renderMarkdownData } from './render.js';
 
 function render(markdown: string, data: unknown, format: 'markdown' | 'json'): string {
-  if (format === 'markdown') {
-    return markdown;
-  }
-
-  return JSON.stringify(data, null, 2);
+  return renderMarkdownData(markdown, data, format);
 }
 
 const FLOW_ACTION_VALUES = [
@@ -82,6 +79,24 @@ const FLOW_ACTION_VALUES = [
 ] as const;
 
 const FLOW_OPERATION_VALUES = ['init', 'overview', 'config', 'topic', 'control'] as const;
+
+type FlowConfigActionValue = 'list' | 'add' | 'update' | 'rename' | 'delete';
+type FlowTopicActionValue =
+  | 'start'
+  | 'finish'
+  | 'publish'
+  | 'list'
+  | 'update'
+  | 'delete'
+  | 'rename'
+  | 'checkout'
+  | 'track';
+type FlowControlActionValue = 'continue' | 'abort';
+type FlowMatchModeValue = 'exact' | 'prefix';
+type FlowBranchKindValue = 'base' | 'topic';
+type FlowPresetValue = 'classic' | 'github' | 'gitlab';
+type FlowScopeValue = 'local' | 'global' | 'system' | 'file';
+type FlowStrategyValue = 'merge' | 'rebase' | 'squash' | 'none';
 
 export function registerFlowTools(server: McpServer): void {
   server.registerTool(
@@ -226,21 +241,21 @@ export function registerFlowTools(server: McpServer): void {
       repo_path: string | undefined;
       action?: (typeof FLOW_ACTION_VALUES)[number];
       operation?: FlowOperation;
-      config_action?: 'list' | 'add' | 'update' | 'rename' | 'delete';
-      topic_action?: 'start' | 'finish' | 'publish' | 'list' | 'update' | 'delete' | 'rename' | 'checkout' | 'track';
-      control_action?: 'continue' | 'abort';
+      config_action?: FlowConfigActionValue;
+      topic_action?: FlowTopicActionValue;
+      control_action?: FlowControlActionValue;
       topic?: string;
       name?: string;
       new_name?: string;
       pattern?: string;
-      match_mode?: 'exact' | 'prefix';
-      branch_kind?: 'base' | 'topic';
+      match_mode?: FlowMatchModeValue;
+      branch_kind?: FlowBranchKindValue;
       parent?: string;
       prefix?: string;
       start_point?: string;
       base_ref?: string;
-      preset?: 'classic' | 'github' | 'gitlab';
-      scope?: 'local' | 'global' | 'system' | 'file';
+      preset?: FlowPresetValue;
+      scope?: FlowScopeValue;
       config_file?: string;
       force: boolean;
       no_create_branches: boolean;
@@ -249,9 +264,9 @@ export function registerFlowTools(server: McpServer): void {
       staging_branch?: string;
       production_branch?: string;
       remote?: string;
-      upstream_strategy?: 'merge' | 'rebase' | 'squash' | 'none';
-      downstream_strategy?: 'merge' | 'rebase' | 'squash' | 'none';
-      strategy?: 'merge' | 'rebase' | 'squash' | 'none';
+      upstream_strategy?: FlowStrategyValue;
+      downstream_strategy?: FlowStrategyValue;
+      strategy?: FlowStrategyValue;
       fetch?: boolean;
       ff?: boolean;
       keep_branch?: boolean;

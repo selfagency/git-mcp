@@ -14,7 +14,7 @@ vi.mock('simple-git', () => ({
 
 import { existsSync, statSync } from 'node:fs';
 import { simpleGit } from 'simple-git';
-import { getGit, toGitError, validateRepoPath } from '../client.js';
+import { getGit, toGitError, validatePathArgument, validatePathArguments, validateRepoPath } from '../client.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -109,5 +109,37 @@ describe('getGit', () => {
   it('throws when path does not exist', () => {
     vi.mocked(existsSync).mockReturnValue(false);
     expect(() => getGit('/nonexistent')).toThrow('Repository path does not exist');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validatePathArgument(s)
+// ---------------------------------------------------------------------------
+describe('validatePathArgument', () => {
+  it('accepts a normal relative path', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    expect(validatePathArgument('/repo', 'src/index.ts')).toBe('src/index.ts');
+  });
+
+  it('normalizes windows separators', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    expect(validatePathArgument('/repo', String.raw`src\index.ts`)).toBe('src/index.ts');
+  });
+
+  it('rejects absolute paths', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    expect(() => validatePathArgument('/repo', '/etc/passwd')).toThrow('escapes repository root');
+  });
+
+  it('rejects parent traversal', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    expect(() => validatePathArgument('/repo', '../secret.txt')).toThrow('escapes repository root');
+  });
+});
+
+describe('validatePathArguments', () => {
+  it('validates a path list', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    expect(validatePathArguments('/repo', ['a.ts', 'dir/b.ts'])).toEqual(['a.ts', 'dir/b.ts']);
   });
 });

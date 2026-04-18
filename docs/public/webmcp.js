@@ -31,9 +31,9 @@
         };
 
         const targetPath = routes[section] ?? routes['getting-started'];
-        const targetUrl = new URL(targetPath, window.location.origin).toString();
+        const targetUrl = new URL(targetPath, globalThis.location.origin).toString();
 
-        window.location.assign(targetUrl);
+        globalThis.location.assign(targetUrl);
 
         return {
           ok: true,

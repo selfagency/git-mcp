@@ -12,46 +12,54 @@ import {
   getStatus,
   showRef,
 } from '../services/inspect.service.js';
+import { renderContent } from './render.js';
 
 function toText(content: unknown, responseFormat: 'markdown' | 'json'): string {
-  if (responseFormat === 'json') {
-    return JSON.stringify(content, null, 2);
-  }
-
-  return typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+  return renderContent(content, responseFormat);
 }
 
+let gitStatusRegistered = false;
+
 export function registerInspectTools(server: McpServer): void {
-  server.registerTool(
-    'git_status',
-    {
-      title: 'Git Status',
-      description: 'Get repository working tree and branch status.',
-      inputSchema: {
-        repo_path: RepoPathSchema,
-        response_format: ResponseFormatSchema,
+  if (!gitStatusRegistered) {
+    server.registerTool(
+      'git_status',
+      {
+        title: 'Git Status',
+        description: 'Get repository working tree and branch status.',
+        inputSchema: {
+          repo_path: RepoPathSchema,
+          response_format: ResponseFormatSchema,
+        },
+        annotations: {
+          readOnlyHint: true,
+          idempotentHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
       },
-      annotations: {
-        readOnlyHint: true,
-        idempotentHint: true,
-        destructiveHint: false,
-        openWorldHint: false,
+      async ({
+        repo_path,
+        response_format,
+      }: {
+        repo_path: string | undefined;
+        response_format: 'markdown' | 'json';
+      }) => {
+        try {
+          const repoPath = resolveRepoPath(repo_path);
+          const status = await getStatus(repoPath);
+          return {
+            content: [{ type: 'text', text: toText(status, response_format) }],
+            structuredContent: { status },
+          };
+        } catch (error) {
+          const gitError = toGitError(error);
+          return { content: [{ type: 'text', text: `Error (${gitError.kind}): ${gitError.message}` }] };
+        }
       },
-    },
-    async ({ repo_path, response_format }: { repo_path: string | undefined; response_format: 'markdown' | 'json' }) => {
-      try {
-        const repoPath = resolveRepoPath(repo_path);
-        const status = await getStatus(repoPath);
-        return {
-          content: [{ type: 'text', text: toText(status, response_format) }],
-          structuredContent: { status },
-        };
-      } catch (error) {
-        const gitError = toGitError(error);
-        return { content: [{ type: 'text', text: `Error (${gitError.kind}): ${gitError.message}` }] };
-      }
-    },
-  );
+    );
+    gitStatusRegistered = true;
+  }
 
   server.registerTool(
     'git_log',

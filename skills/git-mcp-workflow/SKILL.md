@@ -1,44 +1,22 @@
 ---
 name: git-mcp-workflow
-description: 'Use for repositories managed through the git-mcp server when an agent needs to inspect repository state, create commits, manage branches and remotes, rebase, cherry-pick, stash, bisect, work with worktrees, handle Git Flow or git-flow-next-style workflows, manage tags, recover from mistakes, or explain Git concepts using MCP tools instead of raw git CLI commands. Especially relevant for prompts about git_status, git_commit, git_push, git_rebase, git_cherry_pick, git_worktree, git_stash, git_reflog, git_flow, git_lfs, submodules, PR preparation, release tagging, and Git recovery. IMPORTANT: Never use shell/terminal to run git commands directly; always use git-mcp MCP tools instead.'
+description: Use this skill for repositories managed through the git-mcp server when the task involves Git inspection, staging or committing, branches, remotes, rebase, cherry-pick, stash, bisect, worktrees, Git Flow, LFS, release tagging, PR preparation, or recovery. Prefer git-mcp tools over shell git commands, including when the user asks in raw Git terms such as git_status, git_commit, git_push, git_rebase, git_reflog, git_flow, submodules, or “undo this safely”.
 ---
 
 # Git MCP Workflow
 
 An MCP-first workflow skill for repositories exposed through `git-mcp`.
 
-This skill adapts common Git guidance for a world where the preferred interface is the server's tool catalog, not ad-hoc shell commands. It covers both everyday Git work and the spicier recovery and history-editing cases.
+Use it to translate everyday Git tasks and recovery tasks into the server's safe tool surface instead of ad-hoc shell commands.
 
-## Why LLMs Must Not Use the Git CLI
+## Core rule
 
-**Using `git` directly via the shell is highly error-prone for LLMs and should be considered forbidden except as a narrow last resort.**
+- Always use `git-mcp` MCP tools for Git operations.
+- Never invoke `git` via shell unless the operation truly is not covered by any `git-mcp` tool.
+- Inspect repository state before mutating it.
+- Prefer the most reversible safe operation that satisfies the user's intent.
 
-The root cause is structural: Git commands frequently require commit messages, branch names, file paths, and other string arguments that contain spaces, quotes, special characters, or newlines. Shell interpreters handle quoting through multiple layers (single quotes, double quotes, `$'...'` escapes, heredocs) and the rules differ between `sh`, `bash`, and `zsh`. LLMs routinely produce subtly malformed quoting that causes:
-
-- Commit messages truncated at the first space or quote character
-- Arguments interpreted as flags (a message starting with `-` becomes a flag)
-- Multi-line messages collapsed to one line or silently dropped
-- Shell word-splitting breaking file paths that contain spaces
-- Quote nesting errors causing the command to hang waiting for a closing delimiter
-- `$` or backtick characters in messages accidentally triggering command substitution
-
-These errors are often **silent**: the command appears to succeed, but the result is wrong (e.g., a commit message of `"fix"` instead of `"fix: resolve null pointer in auth handler"`). LLMs typically cannot observe the actual error because the shell may not surface it clearly in the tool output.
-
-**The `git-mcp` server solves all of this.** Every tool parameter is a typed, validated field that the server passes directly to `simple-git` as an argument array, bypassing shell interpretation entirely. There are no quoting problems, no interpolation hazards, and no silent truncation.
-
-**Rule: Always use `git-mcp` MCP tools for git operations. Never invoke `git` via shell unless the specific operation is genuinely not available through any `git-mcp` tool.**
-
-## When to Use This Skill
-
-Use this skill when you need to:
-
-- Inspect repository state before making changes
-- Stage, commit, branch, fetch, pull, and push via MCP tools
-- Rebase, cherry-pick, stash, bisect, tag, or use worktrees
-- Recover from resets, detached HEAD, or other Git mishaps
-- Choose between GitHub Flow, classic Git Flow, git-flow-next-style presets, trunk-based, or release workflows
-- Prepare a branch for review or release while preserving safety
-- Explain Git concepts in terms of the `git-mcp` tool surface
+If you need the rationale behind the shell restriction, read `references/shell-safety.md`.
 
 ## Core Operating Rules
 
@@ -119,25 +97,16 @@ Narrow cases where CLI may still be necessary (confirm no MCP tool covers it fir
 - `git filter-repo`-style deep history surgery
 - repo-local hook installation commands
 
-## Registered Tool Surface
+## Common tool families
 
-The server exposes these tools (and only these).
+- `git_context`, `git_status`, `git_history` for inspection
+- `git_commits`, `git_branches`, `git_remotes` for everyday changes
+- `git_workspace` for stash, rebase, cherry-pick, merge, bisect, tag, worktree, and submodule flows
+- `git_flow` for git-flow-next-style lifecycle operations
+- `git_lfs` for large-file workflows
+- `git_docs` when the user needs authoritative Git usage help
 
-| Tool            | Actions                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------- |
-| `git_context`   | `summary` (default), `search`, `get_config`, `set_config`, `aliases`                                    |
-| `git_status`    | `status` (default), `diff`, `diff_main`                                                                 |
-| `git_history`   | `log` (default), `show`, `reflog`, `blame`, `lg`, `who`                                                 |
-| `git_commits`   | `add`, `restore`, `commit`, `reset`, `revert`, `undo`, `nuke`, `wip`, `unstage`, `amend`                |
-| `git_branches`  | `list` (default), `create`, `delete`, `rename`, `checkout`, `set_upstream`, `recent`                    |
-| `git_remotes`   | `list` (default), `manage`, `fetch`, `pull`, `push`                                                     |
-| `git_workspace` | `stash`, `stash_all`, `rebase`, `cherry_pick`, `merge`, `bisect`, `tag`, `worktree`, `submodule`        |
-| `git_flow`      | `operation=init/overview/config/topic/control`                                                          |
-| `git_lfs`       | `track`, `untrack`, `ls-files`, `status`, `pull`, `push`, `install`, `migrate-import`, `migrate-export` |
-| `git_docs`      | `search`, `man`                                                                                         |
-| `git_ping`      | _(health check)_                                                                                        |
-
-See `references/tooling-map.md` for full parameter details.
+See `references/tooling-map.md` for the full tool and action catalog.
 
 ## Recommended Workflow
 
@@ -164,9 +133,17 @@ See `references/tooling-map.md` for full parameter details.
 - `git_lfs` — large binary assets
 - `git_flow` — scheduled release workflows, preset init, flow overview/config inspection, config CRUD, and finish recovery
 
-## Tool Selection
+## Validation checklist
 
-Read `references/tooling-map.md` for the MCP-first command mapping.
+Before you finish, confirm all of the following:
+
+- Git operations used `git-mcp` tools, not shell `git`
+- Repository context was inspected before any mutation
+- The chosen action matches the branch safety level: local-only rewrite versus shared-history-safe revert
+- Any forceful action was explicitly requested and gated by the relevant server setting
+- Hook or CI failures were treated as real failures rather than bypassed casually
+
+For multi-step or risky work, keep a short checklist in your scratchpad and update it as you go.
 
 ## Playbooks
 
@@ -179,22 +156,7 @@ Read `references/workflow-playbooks.md` for:
 - backport and release tagging playbooks
 - hooks and CI guidance
 
-## Git Concepts to Explain Clearly
-
-When the user needs explanation rather than action, anchor your answer in these concepts:
-
-- working tree, index, and committed history
-- branches as movable refs
-- `HEAD` as the current pointer
-- fast-forward versus merge commit history
-- local-only history rewriting versus shared history preservation
-- reflog as the recovery ledger
-
-Explain the concept using the MCP tool that reveals it:
-
-- status and staging area: `git_status action=status`, `git_status action=diff`, `git_commits action=add`, `git_commits action=restore`
-- refs and branch movement: `git_history action=log`, `git_history action=show`, `git_branches action=list`, `git_history action=reflog`
-- merge and rebase state: `git_context action=summary`, `git_workspace action=rebase`, `git_workspace action=cherry_pick`
+If the user wants conceptual Git explanations, read `references/git-concepts.md`.
 
 ## Repository-Specific Notes for `git-mcp`
 
@@ -213,6 +175,9 @@ When contributing to this repository itself:
 
 - `references/tooling-map.md`
 - `references/workflow-playbooks.md`
+- `references/git-flow-next.md`
+- `references/shell-safety.md`
+- `references/git-concepts.md`
 - `docs/tools/index.md`
 - `docs/guide/safety.md`
 - `docs/development/contributing.md`

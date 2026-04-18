@@ -77,9 +77,21 @@ export async function searchHistory(repoPath: string, query: string, limit: numb
     : combined;
 }
 
-const BLOCKED_CONFIG_KEY_PATTERNS: readonly RegExp[] = [/^credential\./i, /^url\./i];
+const BLOCKED_CONFIG_KEY_PATTERNS: readonly RegExp[] = [
+  /^credential\./i,
+  /^url\./i,
+  /^core\.sshcommand$/i,
+  /^http\..*extraheader$/i,
+];
 
 const SENSITIVE_KEY_PATTERNS: readonly RegExp[] = [/(password|token|secret|auth|passphrase)/i];
+
+const TOKEN_VALUE_PATTERNS: readonly RegExp[] = [
+  /\b[0-9a-f]{40,}\b/i,
+  /\bgh[pousr]_[A-Z0-9]{20,}\b/i,
+  /\bglpat-[A-Z0-9_-]{20,}\b/i,
+  /\bxox[baprs]-[A-Z0-9-]{10,}\b/i,
+];
 
 function isBlockedConfigKey(key: string): boolean {
   return BLOCKED_CONFIG_KEY_PATTERNS.some(p => p.test(key));
@@ -90,9 +102,9 @@ function redactConfigValue(key: string, value: string): string {
     return '***';
   }
   // Redact credentials embedded in URLs: https://user:pass@host → https://***@host
-  const stripped = value.replace(/(https?:\/\/)[^@\s]+@/g, '$1***@');
-  // Redact long hex strings that look like access tokens (not normal in config values)
-  if (/\b[0-9a-f]{40,}\b/i.test(stripped)) {
+  const stripped = value.replaceAll(/(https?:\/\/)[^@\s]+@/g, '$1***@');
+  // Redact long token-like strings that should never be exposed.
+  if (TOKEN_VALUE_PATTERNS.some(pattern => pattern.test(stripped))) {
     return '***';
   }
   return stripped;
@@ -127,7 +139,11 @@ export async function getConfig(repoPath: string, key?: string): Promise<string>
 }
 
 export async function setConfig(repoPath: string, key: string, value: string): Promise<string> {
+  if (isBlockedConfigKey(key)) {
+    throw new Error(`Writing git config key '${key}' is not permitted.`);
+  }
+
   const git = getGit(repoPath);
-  await git.raw(['config', key, value]);
+  await git.raw(['config', '--local', key, value]);
   return `Set ${key}.`;
 }

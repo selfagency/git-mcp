@@ -12,13 +12,10 @@ import {
   runTagAction,
   runWorktreeAction,
 } from '../services/advanced.service.js';
+import { renderContent } from './render.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
-  if (typeof content === 'string' && format === 'markdown') {
-    return content;
-  }
-
-  return JSON.stringify(content, null, 2);
+  return renderContent(content, format);
 }
 
 function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
@@ -177,6 +174,7 @@ export function registerAdvancedTools(server: McpServer): void {
         good_ref: z.string().optional(),
         bad_ref: z.string().optional(),
         command: z.string().optional(),
+        command_args: z.array(z.string()).optional(),
         response_format: ResponseFormatSchema,
       },
       annotations: {
@@ -193,6 +191,7 @@ export function registerAdvancedTools(server: McpServer): void {
       good_ref,
       bad_ref,
       command,
+      command_args,
       response_format,
     }: {
       repo_path: string | undefined;
@@ -201,6 +200,7 @@ export function registerAdvancedTools(server: McpServer): void {
       good_ref?: string;
       bad_ref?: string;
       command?: string;
+      command_args?: string[];
       response_format: 'markdown' | 'json';
     }) => {
       try {
@@ -211,10 +211,11 @@ export function registerAdvancedTools(server: McpServer): void {
           goodRef: good_ref,
           badRef: bad_ref,
           command,
+          commandArgs: command_args,
         });
 
         return {
-          content: [{ type: 'text', text: render({ output }, response_format) }],
+          content: [{ type: 'text', text: renderContent({ output }, response_format) }],
           structuredContent: { output },
         };
       } catch (error) {

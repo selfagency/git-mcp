@@ -4,13 +4,10 @@ import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { fetchRemote, listRemotes, manageRemote, pullRemote, pushRemote } from '../services/remote.service.js';
+import { renderContent } from './render.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
-  if (typeof content === 'string' && format === 'markdown') {
-    return content;
-  }
-
-  return JSON.stringify(content, null, 2);
+  return renderContent(content, format);
 }
 
 export function registerRemoteTools(server: McpServer): void {

@@ -1,5 +1,5 @@
 import { AUTO_SIGN_TAGS, DEFAULT_SIGNING_KEY } from '../config.js';
-import { getGit } from '../git/client.js';
+import { getGit, validatePathArgument } from '../git/client.js';
 
 export interface StashActionOptions {
   readonly action: 'save' | 'list' | 'apply' | 'pop' | 'drop';
@@ -24,7 +24,10 @@ export interface BisectActionOptions {
   readonly goodRef?: string;
   readonly badRef?: string;
   readonly command?: string;
+  readonly commandArgs?: readonly string[];
 }
+
+const SHELL_META_PATTERN = /[;&|`$<>()[\]{}]/;
 
 export interface TagActionOptions {
   readonly action: 'list' | 'create' | 'delete';
@@ -132,6 +135,23 @@ export async function runCherryPickAction(repoPath: string, options: CherryPickA
   return output.trim() || `Cherry-picked ${options.ref}.`;
 }
 
+function resolveBisectRunArgs(options: BisectActionOptions): readonly string[] {
+  if (options.command && SHELL_META_PATTERN.test(options.command)) {
+    throw new Error('command contains shell metacharacters. Use command_args for bisect run.');
+  }
+
+  if (options.command && /\s/.test(options.command)) {
+    throw new Error('command must be a single executable token. Use command_args to pass arguments.');
+  }
+
+  const commandArgs = options.commandArgs ?? (options.command ? [options.command] : undefined);
+  if (!commandArgs || commandArgs.length === 0) {
+    throw new Error('command_args (or command) is required for bisect run.');
+  }
+
+  return commandArgs;
+}
+
 export async function runBisectAction(repoPath: string, options: BisectActionOptions): Promise<string> {
   const git = getGit(repoPath);
 
@@ -158,10 +178,8 @@ export async function runBisectAction(repoPath: string, options: BisectActionOpt
       return output.trim() || 'Skipped current bisect commit.';
     }
     case 'run': {
-      if (!options.command) {
-        throw new Error('command is required for bisect run.');
-      }
-      const output = await git.raw(['bisect', 'run', 'sh', '-lc', options.command]);
+      const commandArgs = resolveBisectRunArgs(options);
+      const output = await git.raw(['bisect', 'run', ...commandArgs]);
       return output.trim() || 'Bisect run completed.';
     }
     case 'reset': {
@@ -266,6 +284,8 @@ export async function runSubmoduleAction(repoPath: string, options: SubmoduleAct
     throw new Error('url and path are required for submodule add.');
   }
 
-  await git.raw(['submodule', 'add', options.url, options.path]);
-  return `Added submodule ${options.path}.`;
+  const safePath = validatePathArgument(repoPath, options.path);
+
+  await git.raw(['submodule', 'add', options.url, safePath]);
+  return `Added submodule ${safePath}.`;
 }

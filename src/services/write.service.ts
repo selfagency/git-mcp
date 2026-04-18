@@ -1,5 +1,5 @@
 import { ALLOW_NO_VERIFY, AUTO_SIGN_COMMITS, DEFAULT_SIGNING_KEY } from '../config.js';
-import { getGit } from '../git/client.js';
+import { getGit, validatePathArguments } from '../git/client.js';
 
 export interface GitAddOptions {
   readonly all?: boolean;
@@ -51,12 +51,14 @@ export async function addFiles(repoPath: string, options: GitAddOptions): Promis
     throw new Error('Provide paths or set all=true.');
   }
 
-  await git.add(paths);
-  return `Staged ${paths.length} path(s).`;
+  const safePaths = validatePathArguments(repoPath, paths);
+  await git.add(safePaths);
+  return `Staged ${safePaths.length} path(s).`;
 }
 
 export async function restoreFiles(repoPath: string, options: GitRestoreOptions): Promise<string> {
   const git = getGit(repoPath);
+  const safePaths = validatePathArguments(repoPath, options.paths);
 
   if (!options.staged && !options.worktree) {
     throw new Error('At least one of staged/worktree must be true.');
@@ -76,10 +78,10 @@ export async function restoreFiles(repoPath: string, options: GitRestoreOptions)
     args.push('--source', options.source);
   }
 
-  args.push('--', ...options.paths);
+  args.push('--', ...safePaths);
 
   await git.raw(args);
-  return `Restored ${options.paths.length} path(s).`;
+  return `Restored ${safePaths.length} path(s).`;
 }
 
 export async function commitChanges(repoPath: string, options: GitCommitOptions): Promise<string> {
@@ -120,13 +122,14 @@ export async function resetChanges(repoPath: string, options: GitResetOptions): 
   const git = getGit(repoPath);
 
   if (options.paths && options.paths.length > 0) {
+    const safePaths = validatePathArguments(repoPath, options.paths);
     const args = ['reset'];
     if (options.target) {
       args.push(options.target);
     }
-    args.push('--', ...options.paths);
+    args.push('--', ...safePaths);
     await git.raw(args);
-    return `Unstaged ${options.paths.length} path(s).`;
+    return `Unstaged ${safePaths.length} path(s).`;
   }
 
   const args = ['reset', `--${options.mode}`];

@@ -181,55 +181,73 @@ async function rollback() {
   $.verbose = false;
   try {
     if (tagPushed) {
-      console.log(`\n⚠️  Release failed after tagging. Deleting tag ${tag} from origin and local repo...`);
-      let remoteDeleted = false;
-      let localDeleted = false;
-
-      try {
-        runGit(['push', 'origin', '--delete', tag]);
-        remoteDeleted = true;
-      } catch {
-        console.error(`❌ Could not delete remote tag ${tag}. Manually run:`);
-        console.error(`   git push origin --delete ${tag}`);
-      }
-
-      try {
-        runGit(['tag', '-d', tag]);
-        localDeleted = true;
-      } catch {
-        console.error(`❌ Could not delete local tag ${tag}. Manually run:`);
-        console.error(`   git tag -d ${tag}`);
-      }
-
-      if (remoteDeleted || localDeleted) {
-        console.log(
-          `↩️  Tag ${tag} rollback complete${releaseWorkflowDone ? ' (GitHub release metadata may still need manual follow-up).' : '.'}`,
-        );
-      }
+      rollbackTag();
     }
     if (commitPushed) {
-      console.log('\n⚠️  Reverting release commit on origin/main...');
-      try {
-        runGit(['revert', '--no-edit', 'HEAD']);
-        runGit(['push', 'origin', 'main']);
-        console.log('↩️  Release commit reverted and pushed. Working tree is clean.');
-      } catch {
-        console.error('❌ Automatic revert failed. Manually run:');
-        console.error('   git revert HEAD && git push origin main');
-      }
+      rollbackPushedCommit();
     } else if (commitLocal) {
-      console.log('\n⚠️  Release aborted before push. Resetting local release commit...');
-      try {
-        runGit(['reset', '--hard', 'HEAD~1']);
-        console.log('↩️  Local release commit removed. Working tree restored.');
-      } catch {
-        console.error('❌ Reset failed. Manually run: git reset --hard HEAD~1');
-      }
+      rollbackLocalCommit();
     }
   } catch {
     /* best effort */
   } finally {
     cleanupTempNpmConfig();
+  }
+}
+
+function rollbackTag() {
+  console.log(`\n⚠️  Release failed after tagging. Deleting tag ${tag} from origin and local repo...`);
+
+  const remoteDeleted = tryDeleteRemoteTag();
+  const localDeleted = tryDeleteLocalTag();
+
+  if (remoteDeleted || localDeleted) {
+    const suffix = releaseWorkflowDone ? ' (GitHub release metadata may still need manual follow-up).' : '.';
+    console.log(`↩️  Tag ${tag} rollback complete${suffix}`);
+  }
+}
+
+function tryDeleteRemoteTag() {
+  try {
+    runGit(['push', 'origin', '--delete', tag]);
+    return true;
+  } catch {
+    console.error(`❌ Could not delete remote tag ${tag}. Manually run:`);
+    console.error(`   git push origin --delete ${tag}`);
+    return false;
+  }
+}
+
+function tryDeleteLocalTag() {
+  try {
+    runGit(['tag', '-d', tag]);
+    return true;
+  } catch {
+    console.error(`❌ Could not delete local tag ${tag}. Manually run:`);
+    console.error(`   git tag -d ${tag}`);
+    return false;
+  }
+}
+
+function rollbackPushedCommit() {
+  console.log('\n⚠️  Reverting release commit on origin/main...');
+  try {
+    runGit(['revert', '--no-edit', 'HEAD']);
+    runGit(['push', 'origin', 'main']);
+    console.log('↩️  Release commit reverted and pushed. Working tree is clean.');
+  } catch {
+    console.error('❌ Automatic revert failed. Manually run:');
+    console.error('   git revert HEAD && git push origin main');
+  }
+}
+
+function rollbackLocalCommit() {
+  console.log('\n⚠️  Release aborted before push. Resetting local release commit...');
+  try {
+    runGit(['reset', '--hard', 'HEAD~1']);
+    console.log('↩️  Local release commit removed. Working tree restored.');
+  } catch {
+    console.error('❌ Reset failed. Manually run: git reset --hard HEAD~1');
   }
 }
 
@@ -247,177 +265,19 @@ process.on('SIGTERM', async () => {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  // --- Prerequisites -------------------------------------------------------
-
-  const resolvedGit = resolveGitExecutable();
-  if (!resolvedGit) {
-    console.error("❌ 'git' is required but not found in PATH.");
-    process.exit(1);
-  }
-  gitCmd = resolvedGit;
-
-  // Ensure npm uses the user's ~/.npmrc (tokens) and the public npm registry.
   const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org/';
+  ensureGitAvailable();
   configureNpmAuth(NPM_REGISTRY);
-
-  // Check npm credentials against the intended registry (non-interactive).
-  try {
-    await $`npm whoami --registry=${NPM_REGISTRY}`;
-  } catch {
-    console.error(`❌ Not logged in to npm (registry: ${NPM_REGISTRY}).`);
-    console.error('   Tips:');
-    console.error(`   - Ensure your token is in ${process.env.NPM_CONFIG_USERCONFIG}`);
-    console.error('   - File should contain a line like: //registry.npmjs.org/:_authToken=<YOUR_TOKEN>');
-    console.error('   - Or export NPM_TOKEN in your environment before running the release script');
-    console.error('   - To log in interactively: npm login --registry=https://registry.npmjs.org/');
-    process.exit(1);
-  }
-
-  // Resolve GitHub auth token: prefer env vars, then ask the gh CLI.
-  let githubToken = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? '';
-  if (!githubToken) {
-    try {
-      githubToken = (await $`gh auth token`).stdout.trim();
-    } catch {
-      console.error('❌ No GitHub token found. Set GH_TOKEN/GITHUB_TOKEN or run: gh auth login');
-      process.exit(1);
-    }
-  }
-
+  await ensureNpmCredentials(NPM_REGISTRY);
+  const githubToken = await resolveGithubToken();
   const octokit = new Octokit({ auth: githubToken });
-
-  // --- Precondition checks --------------------------------------------------
-
-  const dirty = runGit(['status', '--porcelain']).stdout.trim();
-  if (dirty) {
-    console.error('❌ Working tree is not clean. Commit or stash changes first.');
-    process.exit(1);
-  }
-
-  const branch = runGit(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
-  if (branch !== 'main') {
-    console.error(`❌ Must run from 'main'. Current branch: ${branch}`);
-    process.exit(1);
-  }
-
-  console.log('🔄 Fetching latest refs...');
-  runGit(['fetch', 'origin', 'main']);
-  runGit(['pull', '--ff-only', 'origin', 'main']);
-
-  // Derive owner/repo from the git remote URL.
-  const remoteUrl = runGit(['remote', 'get-url', 'origin']).stdout.trim();
-  const repoMatch = remoteUrl.match(/[:/]([^/]+)\/([^/.]+?)(\.git)?$/);
-  if (!repoMatch) {
-    console.error(`❌ Cannot parse owner/repo from remote URL: ${remoteUrl}`);
-    process.exit(1);
-  }
-  const [, owner, repo] = repoMatch;
-
-  // Check for existing local tag.
-  const localTag = runGit(['tag', '-l', tag]).stdout.trim();
-  if (localTag) {
-    console.error(`❌ Local tag ${tag} already exists.`);
-    process.exit(1);
-  }
-
-  // Check for existing remote tag via the API.
-  try {
-    await octokit.git.getRef({ owner, repo, ref: `tags/${tag}` });
-    console.error(`❌ Remote tag ${tag} already exists.`);
-    process.exit(1);
-  } catch (err) {
-    if (err.status !== 404) {
-      throw err;
-    }
-    // 404 = tag does not exist; that's what we want.
-  }
-
-  // --- Previous tag (for release notes diff) --------------------------------
-
-  const tagsResp = await octokit.paginate(octokit.git.listMatchingRefs, {
-    owner,
-    repo,
-    ref: 'tags/v',
-    per_page: 100,
-  });
-
-  const previousTag =
-    tagsResp
-      .map(r => r.ref.replace('refs/tags/', ''))
-      .filter(t => t !== tag)
-      .sort((a, b) => {
-        const parse = v => v.replace(/^v/, '').split('.').map(Number);
-        const [aMaj, aMin, aPatch] = parse(a);
-        const [bMaj, bMin, bPatch] = parse(b);
-        return aMaj - bMaj || aMin - bMin || aPatch - bPatch;
-      })
-      .at(-1) ?? '';
-
-  // --- Release notes --------------------------------------------------------
-
-  console.log(`📝 Generating release notes for ${tag}...`);
-
-  const notesResp = await octokit.repos.generateReleaseNotes({
-    owner,
-    repo,
-    tag_name: tag,
-    target_commitish: 'main',
-    ...(previousTag ? { previous_tag_name: previousTag } : {}),
-  });
-  const releaseNotes = notesResp.data.body?.trim() || '- No notable changes.';
-
-  // --- Update package.json --------------------------------------------------
-
-  console.log(`🧩 Updating package.json to ${version}...`);
-  const pkgPath = resolve(ROOT, 'package.json');
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
-  pkg.version = version;
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
-
-  // --- Update CHANGELOG.md --------------------------------------------------
-
-  console.log('🧩 Updating CHANGELOG.md...');
-  const changelogPath = resolve(ROOT, 'CHANGELOG.md');
-  const date = new Date().toISOString().slice(0, 10);
-  const heading = `## [${version}] - ${date}`;
-  const sourceLine = previousTag ? `\n\n_Source: changes from ${previousTag} to ${tag}._` : '';
-  const section = `\n${heading}\n\n${releaseNotes}${sourceLine}\n`;
-
-  let original;
-  try {
-    original = readFileSync(changelogPath, 'utf8');
-  } catch {
-    original = '# Change Log\n\n## [Unreleased]\n';
-  }
-
-  if (!original.includes(heading)) {
-    const marker = '## [Unreleased]';
-    const idx = original.indexOf(marker);
-    const updated =
-      idx >= 0
-        ? `${original.slice(0, idx + marker.length)}\n${section}${original.slice(idx + marker.length)}`
-        : `${original}\n${section}`;
-    writeFileSync(changelogPath, updated);
-  } else {
-    console.log('ℹ️  CHANGELOG already contains this release heading; skipping.');
-  }
-
-  // --- Commit + push --------------------------------------------------------
-
-  const hasChanges = runGit(['diff', '--name-only', '--', 'package.json', 'CHANGELOG.md']).stdout.trim();
-  if (hasChanges) {
-    console.log('📦 Committing release metadata changes...');
-    runGit(['add', 'package.json', 'CHANGELOG.md']);
-    runGit(['commit', '-m', `chore(release): update version and changelog for ${tag}`]);
-    commitLocal = true;
-  } else {
-    console.log('ℹ️  No version/changelog changes detected; nothing to commit.');
-  }
-
-  console.log('🚀 Pushing main...');
-  runGit(['push', 'origin', 'main']);
-  commitPushed = true;
-  commitLocal = false;
+  ensureCleanMainAndSync();
+  const { owner, repo } = resolveOwnerRepo();
+  await ensureTagIsAvailable(octokit, owner, repo);
+  const previousTag = await findPreviousTag(octokit, owner, repo);
+  const releaseNotes = await generateReleaseNotes(octokit, owner, repo, previousTag);
+  updateReleaseFiles(releaseNotes, previousTag);
+  commitAndPushReleaseMetadata();
 
   const headSha = runGit(['rev-parse', 'HEAD']).stdout.trim();
 
@@ -479,6 +339,174 @@ async function main() {
   npmPublishDone = true;
   cleanupTempNpmConfig();
   console.log(`✅ Published ${tag} to npm.`);
+}
+
+function ensureGitAvailable() {
+  const resolvedGit = resolveGitExecutable();
+  if (!resolvedGit) {
+    throw new Error("'git' is required but not found in PATH.");
+  }
+  gitCmd = resolvedGit;
+}
+
+async function ensureNpmCredentials(registry) {
+  try {
+    await $`npm whoami --registry=${registry}`;
+  } catch {
+    console.error(`❌ Not logged in to npm (registry: ${registry}).`);
+    console.error('   Tips:');
+    console.error(`   - Ensure your token is in ${process.env.NPM_CONFIG_USERCONFIG}`);
+    console.error('   - File should contain a line like: //registry.npmjs.org/:_authToken=<YOUR_TOKEN>');
+    console.error('   - Or export NPM_TOKEN in your environment before running the release script');
+    console.error('   - To log in interactively: npm login --registry=https://registry.npmjs.org/');
+    throw new Error('npm authentication check failed');
+  }
+}
+
+async function resolveGithubToken() {
+  const envToken = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN ?? '';
+  if (envToken) {
+    return envToken;
+  }
+
+  try {
+    return (await $`gh auth token`).stdout.trim();
+  } catch {
+    throw new Error('No GitHub token found. Set GH_TOKEN/GITHUB_TOKEN or run: gh auth login');
+  }
+}
+
+function ensureCleanMainAndSync() {
+  const dirty = runGit(['status', '--porcelain']).stdout.trim();
+  if (dirty) {
+    throw new Error('Working tree is not clean. Commit or stash changes first.');
+  }
+
+  const branch = runGit(['rev-parse', '--abbrev-ref', 'HEAD']).stdout.trim();
+  if (branch !== 'main') {
+    throw new Error(`Must run from 'main'. Current branch: ${branch}`);
+  }
+
+  console.log('🔄 Fetching latest refs...');
+  runGit(['fetch', 'origin', 'main']);
+  runGit(['pull', '--ff-only', 'origin', 'main']);
+}
+
+function resolveOwnerRepo() {
+  const remoteUrl = runGit(['remote', 'get-url', 'origin']).stdout.trim();
+  const repoMatch = remoteUrl.match(/[:/]([^/]+)\/([^/.]+?)(\.git)?$/);
+  if (!repoMatch) {
+    throw new Error(`Cannot parse owner/repo from remote URL: ${remoteUrl}`);
+  }
+
+  const [, owner, repo] = repoMatch;
+  return { owner, repo };
+}
+
+async function ensureTagIsAvailable(octokit, owner, repo) {
+  const localTag = runGit(['tag', '-l', tag]).stdout.trim();
+  if (localTag) {
+    throw new Error(`Local tag ${tag} already exists.`);
+  }
+
+  try {
+    await octokit.git.getRef({ owner, repo, ref: `tags/${tag}` });
+    throw new Error(`Remote tag ${tag} already exists.`);
+  } catch (err) {
+    if (err?.status !== 404) {
+      throw err;
+    }
+  }
+}
+
+async function findPreviousTag(octokit, owner, repo) {
+  const tagsResp = await octokit.paginate(octokit.git.listMatchingRefs, {
+    owner,
+    repo,
+    ref: 'tags/v',
+    per_page: 100,
+  });
+
+  return (
+    tagsResp
+      .map(r => r.ref.replace('refs/tags/', ''))
+      .filter(t => t !== tag)
+      .sort((a, b) => compareSemverTag(a, b))
+      .at(-1) ?? ''
+  );
+}
+
+function compareSemverTag(leftTag, rightTag) {
+  const parse = value => value.replace(/^v/, '').split('.').map(Number);
+  const [leftMajor, leftMinor, leftPatch] = parse(leftTag);
+  const [rightMajor, rightMinor, rightPatch] = parse(rightTag);
+  return leftMajor - rightMajor || leftMinor - rightMinor || leftPatch - rightPatch;
+}
+
+async function generateReleaseNotes(octokit, owner, repo, previousTag) {
+  console.log(`📝 Generating release notes for ${tag}...`);
+  const notesResp = await octokit.repos.generateReleaseNotes({
+    owner,
+    repo,
+    tag_name: tag,
+    target_commitish: 'main',
+    ...(previousTag ? { previous_tag_name: previousTag } : {}),
+  });
+  return notesResp.data.body?.trim() || '- No notable changes.';
+}
+
+function updateReleaseFiles(releaseNotes, previousTag) {
+  console.log(`🧩 Updating package.json to ${version}...`);
+  const pkgPath = resolve(ROOT, 'package.json');
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+  pkg.version = version;
+  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+
+  console.log('🧩 Updating CHANGELOG.md...');
+  const changelogPath = resolve(ROOT, 'CHANGELOG.md');
+  const date = new Date().toISOString().slice(0, 10);
+  const heading = `## [${version}] - ${date}`;
+  const sourceLine = previousTag ? `\n\n_Source: changes from ${previousTag} to ${tag}._` : '';
+  const section = `\n${heading}\n\n${releaseNotes}${sourceLine}\n`;
+
+  const original = readChangelog(changelogPath);
+  if (original.includes(heading)) {
+    console.log('ℹ️  CHANGELOG already contains this release heading; skipping.');
+    return;
+  }
+
+  const marker = '## [Unreleased]';
+  const markerIndex = original.indexOf(marker);
+  const updated =
+    markerIndex >= 0
+      ? `${original.slice(0, markerIndex + marker.length)}\n${section}${original.slice(markerIndex + marker.length)}`
+      : `${original}\n${section}`;
+  writeFileSync(changelogPath, updated);
+}
+
+function readChangelog(changelogPath) {
+  try {
+    return readFileSync(changelogPath, 'utf8');
+  } catch {
+    return '# Change Log\n\n## [Unreleased]\n';
+  }
+}
+
+function commitAndPushReleaseMetadata() {
+  const hasChanges = runGit(['diff', '--name-only', '--', 'package.json', 'CHANGELOG.md']).stdout.trim();
+  if (hasChanges) {
+    console.log('📦 Committing release metadata changes...');
+    runGit(['add', 'package.json', 'CHANGELOG.md']);
+    runGit(['commit', '-m', `chore(release): update version and changelog for ${tag}`]);
+    commitLocal = true;
+  } else {
+    console.log('ℹ️  No version/changelog changes detected; nothing to commit.');
+  }
+
+  console.log('🚀 Pushing main...');
+  runGit(['push', 'origin', 'main']);
+  commitPushed = true;
+  commitLocal = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -554,11 +582,16 @@ async function waitForWorkflow(
 // Entry point
 // ---------------------------------------------------------------------------
 
-main().catch(async err => {
+try {
+  await main();
+} catch (err) {
   const msg = err?.message ?? String(err);
-  if (!(err instanceof ProcessOutput)) {
+  if (err instanceof ProcessOutput) {
+    await rollback();
+    process.exit(err?.exitCode ?? 1);
+  } else {
     console.error(`❌ ${msg}`);
   }
   await rollback();
   process.exit(err?.exitCode ?? 1);
-});
+}

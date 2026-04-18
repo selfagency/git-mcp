@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../git/client.js', () => ({
   getGit: vi.fn(),
   validateRepoPath: vi.fn((p: string) => p),
+  validatePathArgument: vi.fn((_: string, filePath: string) => filePath),
   toGitError: vi.fn((e: unknown) => ({ kind: 'unknown', message: String(e) })),
 }));
 
@@ -205,14 +206,30 @@ describe('runBisectAction', () => {
   it('throws when run has no command', async () => {
     const git = makeGit();
     vi.mocked(getGit).mockReturnValue(git as any);
-    await expect(runBisectAction('/repo', { action: 'run' })).rejects.toThrow('command is required');
+    await expect(runBisectAction('/repo', { action: 'run' })).rejects.toThrow('command_args');
   });
 
-  it('runs bisect with command', async () => {
+  it('throws when command includes shell metacharacters', async () => {
+    const git = makeGit();
+    vi.mocked(getGit).mockReturnValue(git as any);
+    await expect(runBisectAction('/repo', { action: 'run', command: 'echo hi && whoami' })).rejects.toThrow(
+      'metacharacters',
+    );
+  });
+
+  it('throws when command includes whitespace', async () => {
+    const git = makeGit();
+    vi.mocked(getGit).mockReturnValue(git as any);
+    await expect(runBisectAction('/repo', { action: 'run', command: 'make test' })).rejects.toThrow(
+      'single executable token',
+    );
+  });
+
+  it('runs bisect with command_args', async () => {
     const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
     vi.mocked(getGit).mockReturnValue(git as any);
-    await runBisectAction('/repo', { action: 'run', command: 'make test' });
-    expect(git.raw).toHaveBeenCalledWith(['bisect', 'run', 'sh', '-lc', 'make test']);
+    await runBisectAction('/repo', { action: 'run', commandArgs: ['make', 'test'] });
+    expect(git.raw).toHaveBeenCalledWith(['bisect', 'run', 'make', 'test']);
   });
 
   it('resets bisect', async () => {

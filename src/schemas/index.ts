@@ -62,3 +62,12 @@ export const FlowMatchModeSchema = z
   .enum(['exact', 'prefix'])
   .default('exact')
   .describe('How topic names should be resolved for checkout and shorthand operations.');
+
+export const WorkflowNameSchema = z
+  .enum(['snapshot', 'replay', 'branch_surgery', 'publish'])
+  .describe('Named workflow family for multi-step Git orchestration.');
+
+export const WorkflowLifecycleActionSchema = z
+  .enum(['start', 'status', 'continue', 'abort', 'list'])
+  .default('start')
+  .describe('Lifecycle action for git_workflow execution and state management.');
