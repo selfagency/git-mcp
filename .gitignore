@@ -17,6 +17,9 @@
 # .nfs files are created when an open file is removed but is still being accessed
 .nfs*
 
+# MCP Registry server.json copy (generated from root server.json via npm hooks)
+docs/public/server.json
+
 ### macOS ###
 # General
 .DS_Store

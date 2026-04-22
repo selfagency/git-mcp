@@ -247,7 +247,10 @@ jobs:
 
       - name: Install mcp-publisher
         run: |
-          curl -sSfL https://raw.githubusercontent.com/modelcontextprotocol/registry/main/scripts/install.sh | sh
+          set -euo pipefail
+          MCP_PUBLISHER_SCRIPT_URL="https://raw.githubusercontent.com/modelcontextprotocol/registry/main/scripts/install.sh"
+          curl -fsSL "${MCP_PUBLISHER_SCRIPT_URL}" -o install-mcp-publisher.sh
+          sh install-mcp-publisher.sh
 
       - name: Login to MCP Registry with GitHub OIDC
         run: ./mcp-publisher login github-oidc

@@ -462,7 +462,7 @@ function updateReleaseFiles(releaseNotes, previousTag) {
   pkg.version = version;
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
-  console.log('🧩 Updating server.json to ${version}...');
+  console.log(`🧩 Updating server.json to ${version}...`);
   const serverJsonPath = resolve(ROOT, 'server.json');
   const serverJson = JSON.parse(readFileSync(serverJsonPath, 'utf8'));
   serverJson.version = version;
