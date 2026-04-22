@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "agency.self/git-mcp",
+  "name": "io.github.selfagency/git-mcp",
   "description": "A Git MCP server that doesn't suck",
   "repository": {
     "url": "https://github.com/selfagency/git-mcp",
