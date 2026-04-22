@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: [ "v*" ]
   workflow_dispatch:
     inputs:
       version:
@@ -227,3 +227,30 @@ jobs:
           prerelease: ${{ contains(needs.detect-tag.outputs.release_tag, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-mcp:
+    name: Publish to MCP Registry
+    needs: [ detect-tag, release ]
+    if: needs.detect-tag.outputs.release_tag != '' && needs.detect-tag.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repository at release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.detect-tag.outputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Install mcp-publisher
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/modelcontextprotocol/registry/main/scripts/install.sh | sh
+
+      - name: Login to MCP Registry with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
