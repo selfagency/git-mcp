@@ -2,8 +2,7 @@
 
 import { Octokit } from '@octokit/rest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ora from 'ora';
@@ -30,17 +29,12 @@ const tag = `v${version}`;
 //   commitLocal           — release commit exists locally but has not been pushed
 //   commitPushed          — release commit has been pushed to origin/main
 //   tagPushed             — tag has been pushed and should be deleted on failure
-//   releaseWorkflowDone   — GitHub release workflow succeeded for the tag
-//   npmPublishDone        — npm publish succeeded; release is fully complete
 // ---------------------------------------------------------------------------
 
 let commitLocal = false;
 let commitPushed = false;
 let tagPushed = false;
-let releaseWorkflowDone = false;
-let npmPublishDone = false;
 let gitCmd = 'git';
-let tempNpmConfigDir = '';
 
 /**
  * @param {string[]} args
@@ -62,94 +56,6 @@ function runGit(args, options = {}) {
   }
 
   return result;
-}
-
-/**
- * Run a subprocess attached to the caller's terminal so interactive auth flows
- * like npm OTP or browser-based login handoffs can complete successfully.
- *
- * @param {string} command
- * @param {string[]} args
- * @param {import('node:child_process').SpawnSyncOptions} [options]
- */
-function runInteractive(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: ROOT,
-    stdio: 'inherit',
-    shell: false,
-    env: process.env,
-    ...options,
-  });
-
-  if (result.error) {
-    throw new Error(`${command} ${args.join(' ')} failed to spawn: ${result.error.message}`);
-  }
-
-  if (result.signal) {
-    throw new Error(`${command} ${args.join(' ')} was terminated by signal ${result.signal}`);
-  }
-
-  if (result.status !== 0) {
-    throw new Error(`${command} ${args.join(' ')} failed with exit code ${result.status}`);
-  }
-}
-
-function cleanupTempNpmConfig() {
-  if (!tempNpmConfigDir) {
-    return;
-  }
-
-  rmSync(tempNpmConfigDir, { recursive: true, force: true });
-  tempNpmConfigDir = '';
-}
-
-process.on('exit', () => {
-  try {
-    cleanupTempNpmConfig();
-  } catch {
-    // Best-effort cleanup; ignore errors on process exit.
-  }
-});
-
-/**
- * @param {string} registry
- */
-function configureNpmAuth(registry) {
-  const defaultUserConfig = resolve(homedir(), '.npmrc');
-  const configuredUserConfig = process.env.NPM_CONFIG_USERCONFIG || defaultUserConfig;
-  process.env.NPM_CONFIG_USERCONFIG = configuredUserConfig;
-
-  const npmToken = process.env.NPM_TOKEN?.trim();
-  if (!npmToken) {
-    return;
-  }
-
-  let existingConfig = '';
-  try {
-    existingConfig = readFileSync(configuredUserConfig, 'utf8');
-  } catch {
-    existingConfig = '';
-  }
-
-  process.env.NODE_AUTH_TOKEN ||= npmToken;
-
-  const normalizedRegistry = registry.replace(/\/+$/, '/');
-  const registryKey = normalizedRegistry.replace(/^https?:/, '');
-
-  if (existingConfig.includes(`${registryKey}:_authToken=`)) {
-    return;
-  }
-
-  const authLine = `${registryKey}:_authToken=${npmToken}`;
-  tempNpmConfigDir = mkdtempSync(resolve(tmpdir(), 'git-mcp-release-'));
-
-  const tempUserConfig = resolve(tempNpmConfigDir, '.npmrc');
-  const prefix = existingConfig.trimEnd();
-  writeFileSync(tempUserConfig, `${prefix}${prefix ? '\n' : ''}${authLine}\nalways-auth=true\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
-  process.env.NPM_CONFIG_USERCONFIG = tempUserConfig;
 }
 
 function resolveGitExecutable() {
@@ -174,15 +80,18 @@ function resolveGitExecutable() {
 }
 
 async function rollback() {
-  if (npmPublishDone) {
-    cleanupTempNpmConfig();
+  if (tagPushed) {
+    console.error('\n⚠️  Release reached the tagged workflow stage.');
+    console.error(
+      '   Automatic rollback is disabled because GitHub Actions may already have published immutable artifacts.',
+    );
+    console.error(
+      '   Inspect the Release workflow, npm package state, and GitHub Release before making manual changes.',
+    );
     return;
   }
   $.verbose = false;
   try {
-    if (tagPushed) {
-      rollbackTag();
-    }
     if (commitPushed) {
       rollbackPushedCommit();
     } else if (commitLocal) {
@@ -190,42 +99,6 @@ async function rollback() {
     }
   } catch {
     /* best effort */
-  } finally {
-    cleanupTempNpmConfig();
-  }
-}
-
-function rollbackTag() {
-  console.log(`\n⚠️  Release failed after tagging. Deleting tag ${tag} from origin and local repo...`);
-
-  const remoteDeleted = tryDeleteRemoteTag();
-  const localDeleted = tryDeleteLocalTag();
-
-  if (remoteDeleted || localDeleted) {
-    const suffix = releaseWorkflowDone ? ' (GitHub release metadata may still need manual follow-up).' : '.';
-    console.log(`↩️  Tag ${tag} rollback complete${suffix}`);
-  }
-}
-
-function tryDeleteRemoteTag() {
-  try {
-    runGit(['push', 'origin', '--delete', tag]);
-    return true;
-  } catch {
-    console.error(`❌ Could not delete remote tag ${tag}. Manually run:`);
-    console.error(`   git push origin --delete ${tag}`);
-    return false;
-  }
-}
-
-function tryDeleteLocalTag() {
-  try {
-    runGit(['tag', '-d', tag]);
-    return true;
-  } catch {
-    console.error(`❌ Could not delete local tag ${tag}. Manually run:`);
-    console.error(`   git tag -d ${tag}`);
-    return false;
   }
 }
 
@@ -265,10 +138,7 @@ process.on('SIGTERM', async () => {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  const NPM_REGISTRY = process.env.NPM_CONFIG_REGISTRY || 'https://registry.npmjs.org/';
   ensureGitAvailable();
-  configureNpmAuth(NPM_REGISTRY);
-  await ensureNpmCredentials(NPM_REGISTRY);
   const githubToken = await resolveGithubToken();
   const octokit = new Octokit({ auth: githubToken });
   ensureCleanMainAndSync();
@@ -319,26 +189,7 @@ async function main() {
     branch: null,
   });
 
-  releaseWorkflowDone = true;
   console.log(`✅ GitHub release complete: ${tag} → ${headSha}`);
-
-  // --- npm publish ----------------------------------------------------------
-
-  console.log('📦 Building package...');
-  $.verbose = true;
-  await $`pnpm build`;
-  $.verbose = false;
-
-  const distTag = version.includes('-') ? 'next' : 'latest';
-  console.log(`🚀 Publishing ${tag} to npm (dist-tag: ${distTag})...`);
-  // For scoped public packages, --access public is required on first publish; harmless on subsequent publishes.
-  const accessFlag = (JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8')).name || '').startsWith('@')
-    ? ['--access', 'public']
-    : [];
-  runInteractive('npm', ['publish', './dist', '--tag', distTag, '--registry', NPM_REGISTRY, ...accessFlag]);
-  npmPublishDone = true;
-  cleanupTempNpmConfig();
-  console.log(`✅ Published ${tag} to npm.`);
 }
 
 function ensureGitAvailable() {
@@ -347,20 +198,6 @@ function ensureGitAvailable() {
     throw new Error("'git' is required but not found in PATH.");
   }
   gitCmd = resolvedGit;
-}
-
-async function ensureNpmCredentials(registry) {
-  try {
-    await $`npm whoami --registry=${registry}`;
-  } catch {
-    console.error(`❌ Not logged in to npm (registry: ${registry}).`);
-    console.error('   Tips:');
-    console.error(`   - Ensure your token is in ${process.env.NPM_CONFIG_USERCONFIG}`);
-    console.error('   - File should contain a line like: //registry.npmjs.org/:_authToken=<YOUR_TOKEN>');
-    console.error('   - Or export NPM_TOKEN in your environment before running the release script');
-    console.error('   - To log in interactively: npm login --registry=https://registry.npmjs.org/');
-    throw new Error('npm authentication check failed');
-  }
 }
 
 async function resolveGithubToken() {
@@ -469,6 +306,19 @@ function updateReleaseFiles(releaseNotes, previousTag) {
   serverJson.packages[0].version = version;
   writeFileSync(serverJsonPath, JSON.stringify(serverJson, null, 2) + '\n');
 
+  console.log(`🧩 Updating server-card.json to ${version}...`);
+  const serverCardPath = resolve(ROOT, 'docs/public/.well-known/mcp/server-card.json');
+  const serverCard = JSON.parse(readFileSync(serverCardPath, 'utf8'));
+  serverCard.version = version;
+  serverCard.serverInfo.version = version;
+  writeFileSync(serverCardPath, JSON.stringify(serverCard, null, 2) + '\n');
+
+  console.log(`🧩 Updating server-cards.json to ${version}...`);
+  const serverCardsPath = resolve(ROOT, 'docs/public/.well-known/mcp/server-cards.json');
+  const serverCards = JSON.parse(readFileSync(serverCardsPath, 'utf8'));
+  serverCards.serverCards[0].serverInfo.version = version;
+  writeFileSync(serverCardsPath, JSON.stringify(serverCards, null, 2) + '\n');
+
   console.log('🧩 Updating CHANGELOG.md...');
   const changelogPath = resolve(ROOT, 'CHANGELOG.md');
   const date = new Date().toISOString().slice(0, 10);
@@ -506,11 +356,20 @@ function commitAndPushReleaseMetadata() {
     '--',
     'package.json',
     'docs/public/server.json',
+    'docs/public/.well-known/mcp/server-card.json',
+    'docs/public/.well-known/mcp/server-cards.json',
     'CHANGELOG.md',
   ]).stdout.trim();
   if (hasChanges) {
     console.log('📦 Committing release metadata changes...');
-    runGit(['add', 'package.json', 'docs/public/server.json', 'CHANGELOG.md']);
+    runGit([
+      'add',
+      'package.json',
+      'docs/public/server.json',
+      'docs/public/.well-known/mcp/server-card.json',
+      'docs/public/.well-known/mcp/server-cards.json',
+      'CHANGELOG.md',
+    ]);
     runGit(['commit', '-m', `chore(release): update version and changelog for ${tag}`]);
     commitLocal = true;
   } else {
