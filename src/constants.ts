@@ -1,5 +1,7 @@
+import pkg from '../package.json' with { type: 'json' };
+
 export const SERVER_NAME = 'git-mcp-server';
-export const SERVER_VERSION = '0.2.1';
+export const SERVER_VERSION: string = pkg.version;
 export const CHARACTER_LIMIT = 25_000;
 
 export const EXCLUDED_DIFF_DIRECTORIES = ['node_modules/', '.yarn/', '.astro/', 'dist/'] as const;

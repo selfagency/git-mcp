@@ -1,0 +1,78 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "agency.self/git-mcp",
+  "description": "A Git MCP server that doesn't suck",
+  "repository": {
+    "url": "https://github.com/selfagency/git-mcp",
+    "source": "github"
+  },
+  "version": "0.2.2",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@selfagency/git-mcp",
+      "version": "0.2.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GIT_REPO_PATH",
+          "description": "Default repository path for all tool requests. Can also be set via the --repo / --repo-path CLI argument. If omitted, each tool call must supply repo_path explicitly.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GIT_ALLOW_NO_VERIFY",
+          "description": "Set to 'true' to expose a no_verify parameter on commit and push tools, passing --no-verify to Git and bypassing pre-commit / pre-push hooks.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GIT_ALLOW_FORCE_PUSH",
+          "description": "Set to 'true' to expose a force parameter on push tools. Remote branch protection rules (GitHub/GitLab) are still enforced server-side regardless.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GIT_ALLOW_FLOW_HOOKS",
+          "description": "Set to 'true' to allow git_flow to execute git-flow-next-compatible hook and filter programs discovered from git config or repository hook locations.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GIT_SIGNING_KEY",
+          "description": "Default signing key: a GPG key ID, an SSH public key path, or empty to use git's configured user.signingkey. Used when GIT_AUTO_SIGN_COMMITS or GIT_AUTO_SIGN_TAGS is enabled.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "GIT_SIGNING_FORMAT",
+          "description": "Signing format for commits and tags. Accepted values: openpgp, ssh, x509.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GIT_AUTO_SIGN_COMMITS",
+          "description": "Set to 'true' to automatically sign all commits produced by this server.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GIT_AUTO_SIGN_TAGS",
+          "description": "Set to 'true' to automatically sign all tags produced by this server.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
