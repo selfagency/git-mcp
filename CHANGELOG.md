@@ -2,16 +2,6 @@
 
 ## [Unreleased]
 
-## [0.2.3] - 2026-04-22
-
-## What's Changed
-
-- feat(mcp-registry): complete MCP Registry quickstart compliance by @selfagency in https://github.com/selfagency/git-mcp/pull/10
-
-**Full Changelog**: https://github.com/selfagency/git-mcp/compare/v0.2.2...v0.2.3
-
-_Source: changes from v0.2.2 to v0.2.3._
-
 ## [0.2.2] - 2026-04-18
 
 ## What's Changed
