@@ -1,0 +1,14 @@
+.github/workflows/release.yml
+  h_5cf1e2c1161853 257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "d036a416edb4ff8d42b3d7e3401e9f7313091ab9",
+  "prompts": {},
+  "humans": {
+    "h_5cf1e2c1161853": {
+      "author": "Daniel Sieradski"
+    }
+  }
+}
