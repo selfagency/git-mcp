@@ -1,6 +1,6 @@
 {
   "name": "@selfagency/git-mcp",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A Git MCP server that doesn't suck",
   "keywords": [
     "git",
