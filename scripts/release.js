@@ -463,7 +463,7 @@ function updateReleaseFiles(releaseNotes, previousTag) {
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
   console.log(`🧩 Updating server.json to ${version}...`);
-  const serverJsonPath = resolve(ROOT, 'server.json');
+  const serverJsonPath = resolve(ROOT, 'docs/public/server.json');
   const serverJson = JSON.parse(readFileSync(serverJsonPath, 'utf8'));
   serverJson.version = version;
   serverJson.packages[0].version = version;
@@ -500,10 +500,17 @@ function readChangelog(changelogPath) {
 }
 
 function commitAndPushReleaseMetadata() {
-  const hasChanges = runGit(['diff', '--name-only', '--', 'package.json', 'server.json', 'CHANGELOG.md']).stdout.trim();
+  const hasChanges = runGit([
+    'diff',
+    '--name-only',
+    '--',
+    'package.json',
+    'docs/public/server.json',
+    'CHANGELOG.md',
+  ]).stdout.trim();
   if (hasChanges) {
     console.log('📦 Committing release metadata changes...');
-    runGit(['add', 'package.json', 'server.json', 'CHANGELOG.md']);
+    runGit(['add', 'package.json', 'docs/public/server.json', 'CHANGELOG.md']);
     runGit(['commit', '-m', `chore(release): update version and changelog for ${tag}`]);
     commitLocal = true;
   } else {
