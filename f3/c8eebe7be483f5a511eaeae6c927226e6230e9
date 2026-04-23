@@ -1,0 +1,55 @@
+src/services/remote.service.ts
+  h_5cf1e2c1161853 44-47,74-100,102
+  c0b1b7205f64356d 43,48
+src/services/__tests__/flow.service.test.ts
+  c0b1b7205f64356d 133,135-136,139,142,148-149,151-152,157-161,164-166
+  h_5cf1e2c1161853 6-12
+src/git/client.ts
+  h_5cf1e2c1161853 6
+  c0b1b7205f64356d 7-14
+src/tools/render.ts
+  h_5cf1e2c1161853 2-12,16-18,21,29-30,32-34
+src/utils/error-response.ts
+  h_5cf1e2c1161853 1-44,46-58,60-72,74-92
+  c0b1b7205f64356d 45,59,73
+src/resources/git.resources.ts
+  h_5cf1e2c1161853 2,14-16,31,46,51-54,67,72-75,88,93-96,109,125-127
+  c0b1b7205f64356d 17-30
+src/services/flow.service.ts
+  c0b1b7205f64356d 2676-2688
+  h_5cf1e2c1161853 1,7
+src/config.ts
+  h_5cf1e2c1161853 12,14-18,21,23-29
+  c0b1b7205f64356d 11,20,31
+src/git/__tests__/client.test.ts
+  c0b1b7205f64356d 147-154,156,158-160,162-164,166,168-171,173-175,177-179,181-183,185,187-190,192-194,196-198,200,202-204,206-209,211-213,215-217,219-221,223-225,227-229,231-234,236
+  h_5cf1e2c1161853 146,155,157,161,165,167,172,176,180,184,186,191,195,199,201,205,210,214,218,222,226,230,235
+src/constants.ts
+  c0b1b7205f64356d 39-42,44-45
+  h_5cf1e2c1161853 32-38,43,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "f3c8eebe7be483f5a511eaeae6c927226e6230e9",
+  "prompts": {
+    "c0b1b7205f64356d": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "bf73bcaf-c97e-436b-a075-f5a62cf37379",
+        "model": "z/glm-4.7"
+      },
+      "human_author": "Daniel Sieradski",
+      "messages": [],
+      "total_additions": 152,
+      "total_deletions": 101,
+      "accepted_lines": 143,
+      "overriden_lines": 12
+    }
+  },
+  "humans": {
+    "h_5cf1e2c1161853": {
+      "author": "Daniel Sieradski"
+    }
+  }
+}
