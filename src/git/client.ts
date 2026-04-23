@@ -3,10 +3,15 @@ import path from 'node:path';
 import { simpleGit, type SimpleGit } from 'simple-git';
 import type { GitError, GitErrorKind } from '../types.js';
 
-const GIT_NOT_FOUND_PATTERN = /(not found|is not recognized|ENOENT)/i;
-const PERMISSION_PATTERN = /(permission denied|EACCES|EPERM)/i;
-const CONFLICT_PATTERN = /(CONFLICT|merge conflict|rebase in progress|cherry-pick in progress)/i;
-const NETWORK_PATTERN = /(network|timed out|unable to access|could not resolve host|proxy)/i;
+// Enhanced error patterns for better cross-platform error classification
+const GIT_NOT_FOUND_PATTERN =
+  /(not found|is not recognized|command not found|ENOENT|'git' is not recognized|cannot find|no such file or directory|bad interpreter|does not exist)/i;
+const PERMISSION_PATTERN =
+  /(permission denied|EACCES|EPERM|Access denied|Could not create|Read-only file system|PermissionError|operation not permitted|insufficient permissions)/i;
+const CONFLICT_PATTERN =
+  /(CONFLICT|merge conflict|rebase in progress|cherry-pick in progress|Merge conflict|unmerged paths|not possible to fast-forward|automatic merge failed)/i;
+const NETWORK_PATTERN =
+  /(network|timed out|unable to access|could not resolve host|proxy|Connection refused|Host unreachable|Network unreachable|failed to connect|connection timeout|remote error)/i;
 
 function classifyError(message: string): GitErrorKind {
   if (GIT_NOT_FOUND_PATTERN.test(message)) {

@@ -3,6 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../git/client.js', () => ({
   getGit: vi.fn(),
   validateRepoPath: vi.fn((p: string) => p),
+  validatePathArgument: vi.fn((_repoPath: string, candidatePath: string) => {
+    const normalized = candidatePath.replace(/\\/g, '/');
+    if (normalized === '..' || normalized.startsWith('../') || normalized.startsWith('/')) {
+      throw new Error(`Path argument escapes repository root: ${candidatePath}`);
+    }
+    return candidatePath;
+  }),
   toGitError: vi.fn((e: unknown) => ({ kind: 'unknown', message: String(e) })),
 }));
 
@@ -120,6 +127,40 @@ describe('runFlowAction overview/config support', () => {
 
     expect(raw).toHaveBeenCalledWith(['config', '--local', 'gitflow.branch.qa.type', 'base']);
     expect(result.markdown).toContain('Added flow base branch definition qa.');
+  });
+});
+
+describe('runFlowAction path validation edge cases', () => {
+  it('rejects path traversal in configFile', async () => {
+    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    await expect(
+      runFlowAction('/repo', {
+        operation: 'config',
+        configAction: 'add',
+        scope: 'file',
+        configFile: '../../../../etc/passwd',
+        name: 'qa',
+        branchKind: 'base',
+      }),
+    ).rejects.toThrow(/escapes repository root|config file path/i);
+  });
+
+  it('accepts a safe relative configFile path', async () => {
+    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    const result = await runFlowAction('/tmp', {
+      operation: 'config',
+      configAction: 'add',
+      scope: 'file',
+      configFile: 'custom-flow.yml',
+      name: 'qa',
+      branchKind: 'base',
+    });
+
+    expect(result.data).toBeDefined();
   });
 });
 

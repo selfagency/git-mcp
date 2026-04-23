@@ -8,12 +8,27 @@ function parseCliRepoPath(): string | undefined {
   const args = process.argv.slice(2);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] ?? '';
+
+    // Handle --repo / --repo-path with space
     if ((arg === '--repo' || arg === '--repo-path') && i + 1 < args.length) {
-      return args[i + 1];
+      const value = args[i + 1];
+      if (!value || value.startsWith('-')) {
+        throw new Error(`--repo/--repo-path requires a non-empty value. Received: "${value}"`);
+      }
+      return value;
     }
+
+    // Handle --repo=/path or --repo-path=/path
     const match = /^--repo(?:-path)?=(.+)$/.exec(arg);
-    if (match?.[1]) return match[1];
+    if (match?.[1]) {
+      const value = match[1];
+      if (!value || value.startsWith('-')) {
+        throw new Error(`--repo/--repo-path requires a non-empty value. Received: "${value}"`);
+      }
+      return value;
+    }
   }
+
   return undefined;
 }
 

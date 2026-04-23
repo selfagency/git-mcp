@@ -40,6 +40,12 @@ function formatRemoteBranch(remote?: string, branch?: string): string {
 
 function sanitizeRemoteUrl(url: string | undefined): string | undefined {
   if (!url) return url;
+
+  // Handle SSH/SCP-style URLs: git@github.com:org/repo.git
+  if (url.includes(':') && !url.includes('://')) {
+    return sanitizeScpUrl(url);
+  }
+
   try {
     const parsed = new URL(url);
     parsed.username = '';
@@ -63,6 +69,37 @@ function sanitizeRemoteUrl(url: string | undefined): string | undefined {
     // SCP-style URLs (e.g. git@github.com:org/repo.git) are not parseable by URL
     return url;
   }
+}
+
+function sanitizeScpUrl(url: string): string {
+  // Patterns:
+  // git@github.com:org/repo.git
+  // user:pass@github.com:org/repo.git
+  // ssh://git@github.com/org/repo.git
+  const sshMatch = /^ssh:\/\/([^@]+@)?([^/]+)\/(.+)$/.exec(url);
+  if (sshMatch) {
+    const [_, creds, host, path] = sshMatch;
+    const sanitizedCreds = creds ? sanitizeCredentials(creds) : '';
+    return `ssh://${sanitizedCreds}${host}/${path}`;
+  }
+
+  const scpMatch = /^(.+?@)?([^:]+):(.+)$/.exec(url);
+  if (scpMatch) {
+    const [_, creds, host, path] = scpMatch;
+    const sanitizedCreds = creds ? sanitizeCredentials(creds) : '';
+    return `${sanitizedCreds}${host}:${path}`;
+  }
+
+  return url;
+}
+
+function sanitizeCredentials(creds: string): string {
+  // Remove password if present (user:pass@)
+  if (creds.includes(':')) {
+    const [username] = creds.split(':');
+    return username + '@';
+  }
+  return creds;
 }
 
 export async function listRemotes(repoPath: string): Promise<RemoteInfo[]> {

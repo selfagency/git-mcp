@@ -1,10 +1,10 @@
+import { execFile, spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { ALLOW_FLOW_HOOKS } from '../config.js';
-import { getGit, toGitError } from '../git/client.js';
 import { CHARACTER_LIMIT } from '../constants.js';
+import { getGit, toGitError, validatePathArgument, validateRepoPath } from '../git/client.js';
 import type {
   FlowActiveBranch,
   FlowBranchDefinition,
@@ -2664,6 +2664,7 @@ async function runOverviewOperation(git: GitClient, state: FlowConfigState): Pro
 }
 
 async function runConfigOperation(
+  repoPath: string,
   git: GitClient,
   state: FlowConfigState,
   options: FlowOptions,
@@ -2672,6 +2673,19 @@ async function runConfigOperation(
   if (!configAction) {
     throw new Error('configAction is required for operation="config".');
   }
+
+  // Validate config file path when scope is 'file'
+  if (options.scope === 'file' && options.configFile) {
+    try {
+      const validatedRepoPath = validateRepoPath(repoPath);
+      const validatedConfigPath = validatePathArgument(validatedRepoPath, options.configFile);
+      // Update options with validated path
+      options = { ...options, configFile: validatedConfigPath };
+    } catch (error) {
+      throw new Error(`Invalid config file path: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   return mutateConfig(git, state, options, configAction);
 }
 
@@ -2716,7 +2730,7 @@ export async function runFlowAction(repoPath: string, options: FlowOptions): Pro
     case 'overview':
       return runOverviewOperation(git, state);
     case 'config':
-      return runConfigOperation(git, state, options, normalized.configAction);
+      return runConfigOperation(repoPath, git, state, options, normalized.configAction);
     case 'topic':
       return runTopicDispatch(repoPath, git, state, options, normalized.topicAction, normalized.topic);
     case 'control':

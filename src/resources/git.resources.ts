@@ -1,4 +1,5 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { toGitError } from '../git/client.js';
 import { listBranches } from '../services/branch.service.js';
 import { getDiff, getLog, getStatus } from '../services/inspect.service.js';
 
@@ -8,6 +9,26 @@ function decodeRepoPath(value: string): string {
 
 function stringify(data: unknown): string {
   return JSON.stringify(data, null, 2);
+}
+
+function buildResourceError(error: unknown, uri: string | URL) {
+  const gitError = toGitError(error);
+  return {
+    contents: [
+      {
+        uri: uri.toString(),
+        mimeType: 'application/json',
+        text: JSON.stringify(
+          {
+            error: gitError.message,
+            kind: gitError.kind,
+          },
+          null,
+          2,
+        ),
+      },
+    ],
+  };
 }
 
 export function registerGitResources(server: McpServer): void {
@@ -22,11 +43,15 @@ export function registerGitResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
-      const status = await getStatus(repoPath);
-      return {
-        contents: [{ uri: uri.toString(), mimeType: 'application/json', text: stringify(status) }],
-      };
+      try {
+        const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
+        const status = await getStatus(repoPath);
+        return {
+          contents: [{ uri: uri.toString(), mimeType: 'application/json', text: stringify(status) }],
+        };
+      } catch (error) {
+        return buildResourceError(error, uri);
+      }
     },
   );
 
@@ -39,11 +64,15 @@ export function registerGitResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
-      const commits = await getLog(repoPath, { limit: 20, offset: 0 });
-      return {
-        contents: [{ uri: uri.toString(), mimeType: 'application/json', text: stringify({ commits }) }],
-      };
+      try {
+        const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
+        const commits = await getLog(repoPath, { limit: 20, offset: 0 });
+        return {
+          contents: [{ uri: uri.toString(), mimeType: 'application/json', text: stringify({ commits }) }],
+        };
+      } catch (error) {
+        return buildResourceError(error, uri);
+      }
     },
   );
 
@@ -56,11 +85,15 @@ export function registerGitResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
-      const branches = await listBranches(repoPath, true);
-      return {
-        contents: [{ uri: uri.toString(), mimeType: 'application/json', text: stringify({ branches }) }],
-      };
+      try {
+        const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
+        const branches = await listBranches(repoPath, true);
+        return {
+          contents: [{ uri: uri.toString(), mimeType: 'application/json', text: stringify({ branches }) }],
+        };
+      } catch (error) {
+        return buildResourceError(error, uri);
+      }
     },
   );
 
@@ -73,21 +106,25 @@ export function registerGitResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri, variables) => {
-      const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
-      const [unstaged, staged] = await Promise.all([
-        getDiff(repoPath, { mode: 'unstaged', filtered: false }),
-        getDiff(repoPath, { mode: 'staged', filtered: false }),
-      ]);
+      try {
+        const repoPath = decodeRepoPath(String(variables.repo_path ?? ''));
+        const [unstaged, staged] = await Promise.all([
+          getDiff(repoPath, { mode: 'unstaged', filtered: false }),
+          getDiff(repoPath, { mode: 'staged', filtered: false }),
+        ]);
 
-      return {
-        contents: [
-          {
-            uri: uri.toString(),
-            mimeType: 'application/json',
-            text: stringify({ unstaged, staged }),
-          },
-        ],
-      };
+        return {
+          contents: [
+            {
+              uri: uri.toString(),
+              mimeType: 'application/json',
+              text: stringify({ unstaged, staged }),
+            },
+          ],
+        };
+      } catch (error) {
+        return buildResourceError(error, uri);
+      }
     },
   );
 }

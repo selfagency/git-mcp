@@ -143,3 +143,94 @@ describe('validatePathArguments', () => {
     expect(validatePathArguments('/repo', ['a.ts', 'dir/b.ts'])).toEqual(['a.ts', 'dir/b.ts']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// toGitError – extended platform-specific pattern coverage
+// ---------------------------------------------------------------------------
+describe('toGitError extended patterns', () => {
+  // missing_git
+  it('classifies Windows "is not recognized" error', () => {
+    expect(toGitError(new Error("'git' is not recognized as an internal or external command"))).toMatchObject({
+      kind: 'missing_git',
+    });
+  });
+
+  it('classifies "cannot find" as missing_git', () => {
+    expect(toGitError(new Error('cannot find git in PATH'))).toMatchObject({ kind: 'missing_git' });
+  });
+
+  it('classifies "bad interpreter" as missing_git', () => {
+    expect(toGitError(new Error('git: bad interpreter: No such file or directory'))).toMatchObject({
+      kind: 'missing_git',
+    });
+  });
+
+  // permission
+  it('classifies EPERM as permission', () => {
+    expect(toGitError(new Error('EPERM: operation not permitted'))).toMatchObject({ kind: 'permission' });
+  });
+
+  it('classifies Windows "Access denied" as permission', () => {
+    expect(toGitError(new Error('Access denied: C:\\repo'))).toMatchObject({ kind: 'permission' });
+  });
+
+  it('classifies "Read-only file system" as permission', () => {
+    expect(toGitError(new Error('Read-only file system'))).toMatchObject({ kind: 'permission' });
+  });
+
+  it('classifies "insufficient permissions" as permission', () => {
+    expect(toGitError(new Error('insufficient permissions to access repository'))).toMatchObject({
+      kind: 'permission',
+    });
+  });
+
+  // git_conflict
+  it('classifies "cherry-pick in progress" as git_conflict', () => {
+    expect(toGitError(new Error('cherry-pick in progress'))).toMatchObject({ kind: 'git_conflict' });
+  });
+
+  it('classifies "not possible to fast-forward" as git_conflict', () => {
+    expect(toGitError(new Error('not possible to fast-forward, aborting'))).toMatchObject({ kind: 'git_conflict' });
+  });
+
+  it('classifies "automatic merge failed" as git_conflict', () => {
+    expect(toGitError(new Error('automatic merge failed; fix conflicts and then commit the result'))).toMatchObject({
+      kind: 'git_conflict',
+    });
+  });
+
+  it('classifies "unmerged paths" as git_conflict', () => {
+    expect(toGitError(new Error('You have unmerged paths'))).toMatchObject({ kind: 'git_conflict' });
+  });
+
+  // network
+  it('classifies "Connection refused" as network', () => {
+    expect(toGitError(new Error('Connection refused: github.com:443'))).toMatchObject({ kind: 'network' });
+  });
+
+  it('classifies "Host unreachable" as network', () => {
+    expect(toGitError(new Error('Host unreachable: github.com'))).toMatchObject({ kind: 'network' });
+  });
+
+  it('classifies "Network unreachable" as network', () => {
+    expect(toGitError(new Error('Network unreachable'))).toMatchObject({ kind: 'network' });
+  });
+
+  it('classifies "failed to connect" as network', () => {
+    expect(toGitError(new Error('failed to connect to remote'))).toMatchObject({ kind: 'network' });
+  });
+
+  it('classifies "connection timeout" as network', () => {
+    expect(toGitError(new Error('connection timeout after 30s'))).toMatchObject({ kind: 'network' });
+  });
+
+  it('classifies "remote error" as network', () => {
+    expect(toGitError(new Error('remote error: unexpected end of file'))).toMatchObject({ kind: 'network' });
+  });
+
+  // case-insensitive
+  it('matches patterns case-insensitively', () => {
+    expect(toGitError(new Error('PERMISSION DENIED'))).toMatchObject({ kind: 'permission' });
+    expect(toGitError(new Error('NETWORK ERROR'))).toMatchObject({ kind: 'network' });
+  });
+});
