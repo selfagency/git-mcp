@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-20
+
+## 📦 Uncategorized
+
+- feat(mcp-registry): complete MCP Registry quickstart compliance
+   - PR: #10
+- fix(remote): resolve default remote in push + external VCS awareness + git-flow hotfix
+   - PR: #12
+- fix(quality): resolve SonarQube code smells
+   - PR: #16
+
+_Source: changes from v0.2.2 to v0.3.0._
+
+
 ## [0.2.2] - 2026-04-18
 
 ## What's Changed
