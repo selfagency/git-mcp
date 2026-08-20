@@ -22,7 +22,7 @@ function buildError(error: unknown): ReturnType<typeof buildToolError> {
 
 interface RewriteActionInput {
   repoPath: string;
-  action: 'reword' | 'squash' | 'rewrite-messages' | 'backup' | 'restore';
+  action: RewriteActionName;
   ref?: string;
   message?: string;
   count?: number;
@@ -32,68 +32,66 @@ interface RewriteActionInput {
   confirm: boolean;
 }
 
-async function runRewriteAction({
-  repoPath,
-  action,
-  ref,
-  message,
-  count,
-  range,
-  messages,
-  name,
-  confirm,
-}: RewriteActionInput): Promise<unknown> {
-  if (action === 'backup') {
-    if (!name) {
-      throw new Error('name is required for backup.');
-    }
-    return createBackup(repoPath, { name });
-  }
+type RewriteActionName = 'reword' | 'squash' | 'rewrite-messages' | 'backup' | 'restore';
 
-  if (action === 'restore') {
-    if (!name) {
-      throw new Error('name is required for restore.');
-    }
-    if (!confirm) {
-      throw new Error('restore requires confirm=true because it performs a hard reset.');
-    }
-    return restoreBackup(repoPath, { name });
-  }
+interface RewriteActionSpec {
+  readonly confirm: boolean;
+  readonly required: readonly (keyof RewriteActionInput)[];
+  readonly run: (input: RewriteActionInput) => Promise<unknown>;
+}
 
-  if (action === 'reword') {
-    if (!message) {
-      throw new Error('message is required for reword.');
-    }
-    if (!confirm) {
-      throw new Error('reword requires confirm=true because it rewrites history.');
-    }
-    return rewordCommit(repoPath, { ref, message });
-  }
+const REWRITE_ACTIONS: Record<RewriteActionName, RewriteActionSpec> = {
+  backup: {
+    confirm: false,
+    required: ['name'],
+    run: input => createBackup(input.repoPath, { name: input.name! }),
+  },
+  restore: {
+    confirm: true,
+    required: ['name'],
+    run: input => restoreBackup(input.repoPath, { name: input.name! }),
+  },
+  reword: {
+    confirm: true,
+    required: ['message'],
+    run: input => rewordCommit(input.repoPath, { ref: input.ref, message: input.message! }),
+  },
+  squash: {
+    confirm: true,
+    required: ['message', 'count'],
+    run: input => squashCommits(input.repoPath, { count: input.count!, message: input.message! }),
+  },
+  'rewrite-messages': {
+    confirm: true,
+    required: ['range'],
+    run: input => {
+      if (!input.messages || Object.keys(input.messages).length === 0) {
+        throw new Error('messages mapping is required for rewrite-messages.');
+      }
+      return rewriteMessages(input.repoPath, { range: input.range!, messages: input.messages });
+    },
+  },
+};
 
-  if (action === 'squash') {
-    if (!message) {
-      throw new Error('message is required for squash.');
-    }
-    if (!count) {
-      throw new Error('count is required for squash.');
-    }
-    if (!confirm) {
-      throw new Error('squash requires confirm=true because it rewrites history.');
-    }
-    return squashCommits(repoPath, { count, message });
-  }
+const REWRITE_CONFIRM_REQUIREMENTS: Record<RewriteActionName, string> = {
+  backup: '',
+  restore: 'restore requires confirm=true because it performs a hard reset.',
+  reword: 'reword requires confirm=true because it rewrites history.',
+  squash: 'squash requires confirm=true because it rewrites history.',
+  'rewrite-messages': 'rewrite-messages requires confirm=true because it rewrites history.',
+};
 
-  // rewrite-messages
-  if (!range) {
-    throw new Error('range is required for rewrite-messages.');
+function runRewriteAction(input: RewriteActionInput): Promise<unknown> {
+  const spec = REWRITE_ACTIONS[input.action];
+  for (const field of spec.required) {
+    if (!input[field]) {
+      throw new Error(`${field} is required for ${input.action}.`);
+    }
   }
-  if (!messages || Object.keys(messages).length === 0) {
-    throw new Error('messages mapping is required for rewrite-messages.');
+  if (spec.confirm && !input.confirm) {
+    throw new Error(REWRITE_CONFIRM_REQUIREMENTS[input.action]);
   }
-  if (!confirm) {
-    throw new Error('rewrite-messages requires confirm=true because it rewrites history.');
-  }
-  return rewriteMessages(repoPath, { range, messages });
+  return spec.run(input);
 }
 
 export function registerRewriteTools(server: McpServer): void {

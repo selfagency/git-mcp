@@ -11,6 +11,9 @@ function render(content: unknown, format: 'markdown' | 'json'): string {
   return renderContent(content, format);
 }
 
+/** Lifecycle action shared by rebase/cherry-pick/merge. */
+type LifecycleAction = 'start' | 'continue' | 'abort';
+
 function buildError(error: unknown): ReturnType<typeof buildToolError> {
   return buildToolError(error);
 }
@@ -146,7 +149,7 @@ function registerGitRebaseTool(server: McpServer): void {
 }
 
 function buildCherryPickArgs(
-  action: 'start' | 'continue' | 'abort',
+  action: LifecycleAction,
   opts: {
     mainline?: number;
     record_origin: boolean;
@@ -238,7 +241,7 @@ function registerGitCherryPickTool(server: McpServer): void {
 }
 
 function buildMergeArgs(
-  action: 'start' | 'continue' | 'abort',
+  action: LifecycleAction,
   opts: {
     no_ff: boolean;
     ff_only: boolean;
@@ -251,26 +254,21 @@ function buildMergeArgs(
     refs?: string[];
   },
 ): string[] {
-  switch (action) {
-    case 'continue':
-      return ['merge', '--continue'];
-    case 'abort':
-      return ['merge', '--abort'];
-    default: {
-      const args = ['merge'];
-      if (opts.no_ff) args.push('--no-ff');
-      if (opts.ff_only) args.push('--ff-only');
-      if (opts.squash) args.push('--squash');
-      if (opts.no_commit) args.push('--no-commit');
-      if (opts.log) args.push('--log');
-      if (opts.strategy) args.push('--strategy', opts.strategy);
-      if (opts.conflict_style) args.push(`--conflict=${opts.conflict_style}`);
-      for (const option of opts.strategy_options ?? []) args.push('--strategy-option', option);
-      if (!opts.refs || opts.refs.length === 0) throw new Error('refs is required for merge start.');
-      args.push(...opts.refs);
-      return args;
-    }
-  }
+  if (action === 'continue') return ['merge', '--continue'];
+  if (action === 'abort') return ['merge', '--abort'];
+  if (!opts.refs || opts.refs.length === 0) throw new Error('refs is required for merge start.');
+
+  const flags: ReadonlyArray<readonly [boolean, ...string[]]> = [
+    [opts.no_ff, '--no-ff'],
+    [opts.ff_only, '--ff-only'],
+    [opts.squash, '--squash'],
+    [opts.no_commit, '--no-commit'],
+    [opts.log, '--log'],
+    [!!opts.strategy, '--strategy', opts.strategy!],
+    [!!opts.conflict_style, `--conflict=${opts.conflict_style}`],
+  ];
+  const strategyOptions = (opts.strategy_options ?? []).flatMap(option => ['--strategy-option', option]);
+  return ['merge', ...flags.flatMap(([on, ...tokens]) => (on ? tokens : [])), ...strategyOptions, ...opts.refs];
 }
 
 /** Shared merge tool. */
@@ -452,6 +450,8 @@ function registerGitTagTool(server: McpServer): void {
   );
 }
 
+type WorktreeArgs = { args: string[]; fallback: string };
+
 function buildWorktreeArgs(
   action: 'add' | 'list' | 'remove' | 'lock' | 'unlock' | 'prune' | 'repair',
   opts: {
@@ -463,46 +463,60 @@ function buildWorktreeArgs(
     expire?: string;
     paths?: string[];
   },
-): { args: string[]; fallback: string } {
-  switch (action) {
-    case 'list':
-      return { args: ['worktree', 'list', '--porcelain'], fallback: 'No worktrees.' };
-    case 'remove': {
-      if (!opts.path) throw new Error('path is required for worktree remove.');
-      const args = ['worktree', 'remove'];
-      if (opts.force) args.push('--force');
-      args.push(opts.path);
-      return { args, fallback: `Removed worktree ${opts.path}.` };
-    }
-    case 'lock':
-    case 'unlock': {
-      if (!opts.path) throw new Error('path is required for worktree lock/unlock.');
-      const args = ['worktree', action, opts.path];
-      if (action === 'lock' && opts.lock_reason) args.push('--reason', opts.lock_reason);
-      return { args, fallback: `Worktree ${action} completed for ${opts.path}.` };
-    }
-    case 'prune': {
-      const args = ['worktree', 'prune'];
-      if (opts.expire) args.push(`--expire=${opts.expire}`);
-      return { args, fallback: 'Worktree prune completed.' };
-    }
-    case 'repair': {
-      const args = ['worktree', 'repair'];
-      if (opts.paths && opts.paths.length > 0) args.push(...opts.paths);
-      return { args, fallback: 'Worktree repair completed.' };
-    }
-    case 'add': {
-      if (!opts.path) throw new Error('path is required for worktree add.');
-      const args = ['worktree', 'add'];
-      if (opts.force) args.push('--force');
-      if (opts.detached) args.push('--detach');
-      if (opts.lock_reason) args.push('--lock', '--reason', opts.lock_reason);
-      args.push(opts.path);
-      if (opts.branch) args.push(opts.branch);
-      else if (!opts.detached) throw new Error('branch is required for worktree add unless detached=true.');
-      return { args, fallback: `Added worktree at ${opts.path}.` };
-    }
-  }
+): WorktreeArgs {
+  return WORKTREE_BUILDERS[action](opts);
+}
+
+const WORKTREE_BUILDERS: Record<
+  'add' | 'list' | 'remove' | 'lock' | 'unlock' | 'prune' | 'repair',
+  (opts: {
+    path?: string;
+    branch?: string;
+    force: boolean;
+    detached: boolean;
+    lock_reason?: string;
+    expire?: string;
+    paths?: string[];
+  }) => WorktreeArgs
+> = {
+  list: () => ({ args: ['worktree', 'list', '--porcelain'], fallback: 'No worktrees.' }),
+  remove: opts => {
+    if (!opts.path) throw new Error('path is required for worktree remove.');
+    const args = ['worktree', 'remove'];
+    if (opts.force) args.push('--force');
+    args.push(opts.path);
+    return { args, fallback: `Removed worktree ${opts.path}.` };
+  },
+  lock: opts => worktreeLockBuilder('lock', opts),
+  unlock: opts => worktreeLockBuilder('unlock', opts),
+  prune: opts => {
+    const args = ['worktree', 'prune'];
+    if (opts.expire) args.push(`--expire=${opts.expire}`);
+    return { args, fallback: 'Worktree prune completed.' };
+  },
+  repair: opts => {
+    const args = ['worktree', 'repair'];
+    if (opts.paths && opts.paths.length > 0) args.push(...opts.paths);
+    return { args, fallback: 'Worktree repair completed.' };
+  },
+  add: opts => {
+    if (!opts.path) throw new Error('path is required for worktree add.');
+    const args = ['worktree', 'add'];
+    if (opts.force) args.push('--force');
+    if (opts.detached) args.push('--detach');
+    if (opts.lock_reason) args.push('--lock', '--reason', opts.lock_reason);
+    args.push(opts.path);
+    if (opts.branch) args.push(opts.branch);
+    else if (!opts.detached) throw new Error('branch is required for worktree add unless detached=true.');
+    return { args, fallback: `Added worktree at ${opts.path}.` };
+  },
+};
+
+function worktreeLockBuilder(action: 'lock' | 'unlock', opts: { path?: string; lock_reason?: string }): WorktreeArgs {
+  if (!opts.path) throw new Error('path is required for worktree lock/unlock.');
+  const args = ['worktree', action, opts.path];
+  if (action === 'lock' && opts.lock_reason) args.push('--reason', opts.lock_reason);
+  return { args, fallback: `Worktree ${action} completed for ${opts.path}.` };
 }
 
 /** Shared worktree tool. */
@@ -571,6 +585,8 @@ function registerGitWorktreeTool(server: McpServer): void {
   );
 }
 
+type SubmoduleArgs = { args: string[]; fallback: string };
+
 function buildSubmoduleArgs(
   action: 'add' | 'list' | 'update' | 'sync' | 'set_branch',
   opts: {
@@ -584,39 +600,55 @@ function buildSubmoduleArgs(
     paths?: string[];
   },
   repoPath: string,
-): { args: string[]; fallback: string } {
-  switch (action) {
-    case 'list':
-      return { args: ['submodule', 'status'], fallback: 'No submodules.' };
-    case 'sync': {
-      const args = ['submodule', 'sync'];
-      if (opts.recursive) args.push('--recursive');
-      return { args, fallback: 'Submodule sync complete.' };
-    }
-    case 'update': {
-      const args = ['submodule', 'update', '--init'];
-      if (opts.recursive) args.push('--recursive');
-      if (opts.remote) args.push('--remote');
-      if (opts.depth !== undefined) args.push('--depth', String(opts.depth));
-      if (opts.jobs !== undefined) args.push('--jobs', String(opts.jobs));
-      if (opts.paths && opts.paths.length > 0) args.push('--', ...validatePathArguments(repoPath, opts.paths));
-      return { args, fallback: 'Submodule update complete.' };
-    }
-    case 'set_branch': {
-      if (!opts.branch || !opts.path) throw new Error('branch and path are required for submodule set_branch.');
-      const [safePath] = validatePathArguments(repoPath, [opts.path]);
-      return {
-        args: ['submodule', 'set-branch', '--branch', opts.branch, '--', safePath],
-        fallback: `Set submodule ${safePath} branch to ${opts.branch}.`,
-      };
-    }
-    case 'add': {
-      if (!opts.url || !opts.path) throw new Error('url and path are required for submodule add.');
-      const [safePath] = validatePathArguments(repoPath, [opts.path]);
-      return { args: ['submodule', 'add', opts.url, safePath], fallback: `Added submodule ${safePath}.` };
-    }
-  }
+): SubmoduleArgs {
+  return SUBMODULE_BUILDERS[action](opts, repoPath);
 }
+
+const SUBMODULE_BUILDERS: Record<
+  'add' | 'list' | 'update' | 'sync' | 'set_branch',
+  (
+    opts: {
+      url?: string;
+      path?: string;
+      branch?: string;
+      recursive: boolean;
+      remote: boolean;
+      depth?: number;
+      jobs?: number;
+      paths?: string[];
+    },
+    repoPath: string,
+  ) => SubmoduleArgs
+> = {
+  list: () => ({ args: ['submodule', 'status'], fallback: 'No submodules.' }),
+  sync: opts => {
+    const args = ['submodule', 'sync'];
+    if (opts.recursive) args.push('--recursive');
+    return { args, fallback: 'Submodule sync complete.' };
+  },
+  update: (opts, repoPath) => {
+    const args = ['submodule', 'update', '--init'];
+    if (opts.recursive) args.push('--recursive');
+    if (opts.remote) args.push('--remote');
+    if (opts.depth !== undefined) args.push('--depth', String(opts.depth));
+    if (opts.jobs !== undefined) args.push('--jobs', String(opts.jobs));
+    if (opts.paths && opts.paths.length > 0) args.push('--', ...validatePathArguments(repoPath, opts.paths));
+    return { args, fallback: 'Submodule update complete.' };
+  },
+  set_branch: (opts, repoPath) => {
+    if (!opts.branch || !opts.path) throw new Error('branch and path are required for submodule set_branch.');
+    const [safePath] = validatePathArguments(repoPath, [opts.path]);
+    return {
+      args: ['submodule', 'set-branch', '--branch', opts.branch, '--', safePath],
+      fallback: `Set submodule ${safePath} branch to ${opts.branch}.`,
+    };
+  },
+  add: (opts, repoPath) => {
+    if (!opts.url || !opts.path) throw new Error('url and path are required for submodule add.');
+    const [safePath] = validatePathArguments(repoPath, [opts.path]);
+    return { args: ['submodule', 'add', opts.url, safePath], fallback: `Added submodule ${safePath}.` };
+  },
+};
 
 /** Shared submodule tool. */
 function registerGitSubmoduleTool(server: McpServer): void {
