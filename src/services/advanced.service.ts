@@ -136,17 +136,23 @@ export async function runCherryPickAction(repoPath: string, options: CherryPickA
 }
 
 function resolveBisectRunArgs(options: BisectActionOptions): readonly string[] {
-  if (options.command && SHELL_META_PATTERN.test(options.command)) {
-    throw new Error('command contains shell metacharacters. Use command_args for bisect run.');
-  }
-
-  if (options.command && /\s/.test(options.command)) {
-    throw new Error('command must be a single executable token. Use command_args to pass arguments.');
-  }
-
+  // `git bisect run` executes the command through a shell, so every argument
+  // must be free of shell metacharacters — not just the first token.
   const commandArgs = options.commandArgs ?? (options.command ? [options.command] : undefined);
   if (!commandArgs || commandArgs.length === 0) {
     throw new Error('command_args (or command) is required for bisect run.');
+  }
+
+  for (const arg of commandArgs) {
+    if (SHELL_META_PATTERN.test(arg)) {
+      throw new Error(`bisect run argument contains shell metacharacters: ${arg}`);
+    }
+  }
+
+  // A single `command` token must not contain whitespace — it would be split
+  // by the shell. Use command_args for multi-token commands.
+  if (options.command && /\s/.test(options.command)) {
+    throw new Error('command must be a single executable token. Use command_args to pass arguments.');
   }
 
   return commandArgs;

@@ -62,15 +62,17 @@ describe('squashCommits', () => {
 });
 
 describe('rewriteMessages', () => {
-  it('builds a msg-filter with mapped commits and passes through others', async () => {
+  it('builds a msg-filter that reads messages from a temp file', async () => {
     const git = makeGit();
     vi.mocked(getGit).mockReturnValue(git as never);
     await rewriteMessages('/repo', { range: 'HEAD~5..HEAD', messages: { abc1234: 'new msg' } });
     const args = git.raw.mock.calls[0][0] as string[];
     expect(args[0]).toBe('filter-branch');
     expect(args).toContain('HEAD~5..HEAD');
-    expect(args.join(' ')).toContain('abc1234');
-    expect(args.join(' ')).toContain('else cat; fi');
+    // The filter must NOT embed the message content in the shell string.
+    expect(args.join(' ')).not.toContain('new msg');
+    // It must reference a temp file instead.
+    expect(args.join(' ')).toContain('messages.txt');
   });
 
   it('rejects empty messages mapping', async () => {
@@ -79,6 +81,36 @@ describe('rewriteMessages', () => {
     await expect(rewriteMessages('/repo', { range: 'HEAD~2..HEAD', messages: {} })).rejects.toThrow(
       'must not be empty',
     );
+  });
+});
+
+describe('rewrite shell-injection regression', () => {
+  const EXPLOITS = ['$(id)', '`touch /tmp/pwned`', '!', '$IFS', 'a\nb', "'single'", '"double"'];
+
+  it('never embeds message content in the filter-branch shell string', async () => {
+    for (const exploit of EXPLOITS) {
+      const git = makeGit();
+      vi.mocked(getGit).mockReturnValue(git as never);
+      await rewordCommit('/repo', { ref: 'abc1234', message: exploit });
+      const args = git.raw.mock.calls[0][0] as string[];
+      const filter = args[3] as string;
+      // The message must never appear in the shell command string.
+      expect(filter).not.toContain(exploit);
+      // The message must be read from a temp file instead.
+      expect(filter).toContain('cat');
+    }
+  });
+
+  it('never embeds mapped message content in the rewrite-messages shell string', async () => {
+    for (const exploit of EXPLOITS) {
+      const git = makeGit();
+      vi.mocked(getGit).mockReturnValue(git as never);
+      await rewriteMessages('/repo', { range: 'HEAD~5..HEAD', messages: { abc1234: exploit } });
+      const args = git.raw.mock.calls[0][0] as string[];
+      const filter = args[3] as string;
+      expect(filter).not.toContain(exploit);
+      expect(filter).toContain('messages.txt');
+    }
   });
 });
 

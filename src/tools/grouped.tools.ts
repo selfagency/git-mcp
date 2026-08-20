@@ -1028,7 +1028,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
         bisect_action: z.enum(['start', 'good', 'bad', 'skip', 'run', 'reset']).optional(),
         tag_action: z.enum(['list', 'create', 'delete']).optional(),
         worktree_action: z.enum(['add', 'list', 'remove', 'lock', 'unlock', 'prune', 'repair']).optional(),
-        submodule_action: z.enum(['add', 'list', 'update', 'sync', 'foreach', 'set_branch']).optional(),
+        submodule_action: z.enum(['add', 'list', 'update', 'sync', 'set_branch']).optional(),
         ref: z.string().optional(),
         onto: z.string().optional(),
         good_ref: z.string().optional(),
@@ -1152,7 +1152,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
       bisect_action?: 'start' | 'good' | 'bad' | 'skip' | 'run' | 'reset';
       tag_action?: 'list' | 'create' | 'delete';
       worktree_action?: 'add' | 'list' | 'remove' | 'lock' | 'unlock' | 'prune' | 'repair';
-      submodule_action?: 'add' | 'list' | 'update' | 'sync' | 'foreach' | 'set_branch';
+      submodule_action?: 'add' | 'list' | 'update' | 'sync' | 'set_branch';
       ref?: string;
       onto?: string;
       good_ref?: string;
@@ -1513,23 +1513,6 @@ function registerGitWorkspaceTool(server: McpServer): void {
           }
           const rawOutput = await git.raw(args);
           const output = rawOutput.trim() || 'Submodule update complete.';
-          return {
-            content: [{ type: 'text', text: render(output, response_format) }],
-            structuredContent: { output },
-          };
-        }
-
-        if (submoduleOp === 'foreach') {
-          if (!command) {
-            throw new Error('command is required for submodule foreach.');
-          }
-          const args = ['submodule', 'foreach'];
-          if (recursive) {
-            args.push('--recursive');
-          }
-          args.push(command);
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || 'Submodule foreach completed.';
           return {
             content: [{ type: 'text', text: render(output, response_format) }],
             structuredContent: { output },

@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { getGit } from '../git/client.js';
 
 export interface RewordOptions {
@@ -27,8 +30,19 @@ export interface RestoreOptions {
 const BACKUP_PREFIX = 'rewrite-backup/';
 
 /**
+ * Creates a temp directory and returns a cleanup function. Used to stage
+ * commit messages on disk so they never appear in a shell command string.
+ */
+function makeTempDir(): { dir: string; cleanup: () => void } {
+  const dir = mkdtempSync(path.join(tmpdir(), 'git-mcp-rewrite-'));
+  return { dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+}
+
+/**
  * Rewrites the message of a single commit. HEAD is amended in place; an
- * arbitrary commit is rewritten with `git filter-branch --msg-filter`.
+ * arbitrary commit is rewritten with `git filter-branch --msg-filter` that
+ * reads the replacement message from a temp file (never embedded in the shell
+ * string), preventing shell injection via commit-message content.
  */
 export async function rewordCommit(repoPath: string, options: RewordOptions): Promise<string> {
   const git = getGit(repoPath);
@@ -38,10 +52,19 @@ export async function rewordCommit(repoPath: string, options: RewordOptions): Pr
     return `Reworded HEAD to: ${options.message}`;
   }
 
-  // Rewrite only the target commit's message via filter-branch.
-  const filter = `if [ "$GIT_COMMIT" = "${options.ref}" ]; then echo ${JSON.stringify(options.message)}; else cat; fi`;
-  await git.raw(['filter-branch', '--force', '--msg-filter', filter, '--', 'HEAD']);
-  return `Reworded ${options.ref} to: ${options.message}`;
+  const { dir, cleanup } = makeTempDir();
+  try {
+    const msgFile = path.join(dir, 'message.txt');
+    writeFileSync(msgFile, options.message, 'utf8');
+
+    // The filter script references only fixed paths — never user message
+    // content — so shell metacharacters in the message cannot execute.
+    const filter = `if [ "$GIT_COMMIT" = "${options.ref}" ]; then cat "${msgFile}"; else cat; fi`;
+    await git.raw(['filter-branch', '--force', '--msg-filter', filter, '--', 'HEAD']);
+    return `Reworded ${options.ref} to: ${options.message}`;
+  } finally {
+    cleanup();
+  }
 }
 
 /**
@@ -62,7 +85,9 @@ export async function squashCommits(repoPath: string, options: SquashOptions): P
 
 /**
  * Rewrites commit messages across a range using an explicit SHA→message mapping.
- * Commits not present in the mapping keep their original message.
+ * Commits not present in the mapping keep their original message. Messages are
+ * staged in a temp file and read by the filter, never embedded in the shell
+ * command string.
  */
 export async function rewriteMessages(repoPath: string, options: RewriteMessagesOptions): Promise<string> {
   const git = getGit(repoPath);
@@ -72,15 +97,20 @@ export async function rewriteMessages(repoPath: string, options: RewriteMessages
     throw new Error('messages mapping must not be empty.');
   }
 
-  // Build a msg-filter that replaces the message for each mapped commit and
-  // passes through the original message for unmapped commits.
-  const branches = entries.map(
-    ([sha, message]) => `if [ "$GIT_COMMIT" = "${sha}" ]; then echo ${JSON.stringify(message)}; `,
-  );
-  const filter = `${branches.join('elif ')}else cat; fi`;
+  const { dir, cleanup } = makeTempDir();
+  try {
+    // Map file: one "<sha> <message>" per line. The filter greps by $GIT_COMMIT
+    // and prints the message; the message content lives in the file, not the
+    // shell string.
+    const mapFile = path.join(dir, 'messages.txt');
+    writeFileSync(mapFile, entries.map(([sha, message]) => `${sha} ${message}`).join('\n'), 'utf8');
 
-  await git.raw(['filter-branch', '--force', '--msg-filter', filter, '--', options.range]);
-  return `Rewrote messages for ${entries.length} commit(s) in ${options.range}.`;
+    const filter = `line=$(grep "^$GIT_COMMIT " "${mapFile}"); if [ -n "$line" ]; then printf '%s' "\${line#* }"; else cat; fi`;
+    await git.raw(['filter-branch', '--force', '--msg-filter', filter, '--', options.range]);
+    return `Rewrote messages for ${entries.length} commit(s) in ${options.range}.`;
+  } finally {
+    cleanup();
+  }
 }
 
 /**

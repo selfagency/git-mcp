@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   statSync: vi.fn().mockReturnValue({ isDirectory: () => true }),
+  realpathSync: vi.fn((p: string) => p),
 }));
 
 // Mock simple-git
@@ -12,7 +13,7 @@ vi.mock('simple-git', () => ({
   simpleGit: vi.fn().mockReturnValue({ _isMocked: true }),
 }));
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import { simpleGit } from 'simple-git';
 import { getGit, toGitError, validatePathArgument, validatePathArguments, validateRepoPath } from '../client.js';
 
@@ -134,6 +135,22 @@ describe('validatePathArgument', () => {
   it('rejects parent traversal', () => {
     vi.mocked(existsSync).mockReturnValue(true);
     expect(() => validatePathArgument('/repo', '../secret.txt')).toThrow('escapes repository root');
+  });
+
+  it('rejects a path that escapes via symlink', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(realpathSync).mockImplementation((p: unknown) => {
+      if (p === '/repo') return '/repo';
+      // The symlink target resolves outside the repo root.
+      return '/etc/passwd';
+    });
+    expect(() => validatePathArgument('/repo', 'link')).toThrow('via symlink');
+  });
+
+  it('accepts a path whose symlink stays inside the repo', () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(realpathSync).mockImplementation((p: unknown) => p as string);
+    expect(validatePathArgument('/repo', 'src/file.ts')).toBe('src/file.ts');
   });
 });
 
