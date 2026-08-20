@@ -12,7 +12,7 @@ Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and O
 
 ## Features
 
-- **11 grouped tools with 60+ actions** covering everyday Git workflows and advanced recovery operations
+- **18 tools with 80+ actions** covering everyday Git workflows, advanced recovery, history rewriting, repository analytics, forge pull requests, and external VCS awareness
 - **Safety-first** — destructive operations require explicit confirmation; force push and hook bypass are opt-in via server config
 - **GPG/SSH signing** for commits and tags, with server-level auto-sign support
 - **Git LFS** — track patterns, manage objects, install hooks, migrate history
@@ -22,6 +22,9 @@ Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and O
 - **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for AI agents and coding agents; installable via [`skills-npm`](https://github.com/antfu/skills-npm) and [skill.sh](https://skills.sh/)
 - **External VCS awareness** — `git_but_check` / `git_jj_check` detect GitButler and Jujutsu and guide agents to prefer their native CLIs/MCP (with `but teardown` guidance) over git-mcp tools when appropriate
 - **History rewrite** — `git_rewrite`: reword, squash, rewrite-messages, and backup/restore for safe commit-history rewriting
+- **Repository analytics** — `git_analytics`: contributors, churn, activity, summary, and file-stats computed from local git history
+- **Pull requests** — `git_pr`: create/list/merge PRs/MRs on GitHub, GitLab, Forgejo, Gitea, and Bitbucket via provider CLI or REST API
+- **Tangled & Entire awareness** — `git_tangled_check` / `git_entire_check` detect Tangled hosting and Entire session/context management
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
 - **Cross-platform** — macOS, Linux, Windows (Git for Windows)
 
@@ -78,16 +81,28 @@ Add to `.vscode/mcp.json` in your project:
 
 All configuration is via environment variables. Pass them in your MCP client config:
 
-| Variable                | Default | Description                                           |
-| ----------------------- | ------- | ----------------------------------------------------- |
-| `GIT_REPO_PATH`         | —       | Default repository path (also: `--repo-path` CLI arg) |
-| `GIT_ALLOW_NO_VERIFY`   | `false` | Allow `--no-verify` on commit/push (bypasses hooks)   |
-| `GIT_ALLOW_FORCE_PUSH`  | `false` | Allow `--force` on push                               |
-| `GIT_ALLOW_FLOW_HOOKS`  | `false` | Allow `git_flow` hooks and filters to execute         |
-| `GIT_AUTO_SIGN_COMMITS` | `false` | Automatically sign every commit                       |
-| `GIT_AUTO_SIGN_TAGS`    | `false` | Automatically sign every tag                          |
-| `GIT_SIGNING_KEY`       | —       | Default GPG key ID or SSH key path                    |
-| `GIT_SIGNING_FORMAT`    | —       | Signing format: `openpgp`, `ssh`, or `x509`           |
+| Variable                | Default  | Description                                           |
+| ----------------------- | -------- | ----------------------------------------------------- |
+| `GIT_REPO_PATH`         | —        | Default repository path (also: `--repo-path` CLI arg) |
+| `GIT_ALLOW_NO_VERIFY`   | `false`  | Allow `--no-verify` on commit/push (bypasses hooks)   |
+| `GIT_ALLOW_FORCE_PUSH`  | `false`  | Allow `--force` on push                               |
+| `GIT_ALLOW_FLOW_HOOKS`  | `false`  | Allow `git_flow` hooks and filters to execute         |
+| `GIT_AUTO_SIGN_COMMITS` | `false`  | Automatically sign every commit                       |
+| `GIT_AUTO_SIGN_TAGS`    | `false`  | Automatically sign every tag                          |
+| `GIT_SIGNING_KEY`       | —        | Default GPG key ID or SSH key path                    |
+| `GIT_SIGNING_FORMAT`    | —        | Signing format: `openpgp`, `ssh`, or `x509`           |
+| `GIT_ALLOW_BUT`         | `false`  | Enable GitButler awareness (`git_but_check`)          |
+| `GIT_ALLOW_JJ`          | `false`  | Enable Jujutsu awareness (`git_jj_check`)             |
+| `GIT_ALLOW_TANGLED`     | `false`  | Enable Tangled awareness (`git_tangled_check`)        |
+| `GIT_ALLOW_ENTIRE`      | `false`  | Enable Entire awareness (`git_entire_check`)          |
+| `BUT_BINARY`            | `but`    | Override the `but` executable path                    |
+| `JJ_BINARY`             | `jj`     | Override the `jj` executable path                     |
+| `ENTIRE_BINARY`         | `entire` | Override the `entire` executable path                 |
+| `GITHUB_TOKEN`          | —        | GitHub token for `git_pr` REST fallback               |
+| `GITLAB_TOKEN`          | —        | GitLab token for `git_pr` REST fallback               |
+| `FORGEJO_TOKEN`         | —        | Forgejo/Gitea token for `git_pr` REST fallback        |
+| `BITBUCKET_TOKEN`       | —        | Bitbucket token for `git_pr` REST fallback            |
+| `GIT_FORGE_PROVIDER`    | —        | Explicit forge provider for self-hosted instances     |
 
 ---
 
@@ -207,6 +222,45 @@ Preset git-flow-next workflow without requiring the external CLI.
 | -------- | ------------------------------------ |
 | `search` | Search git-scm.com for documentation |
 | `man`    | Fetch and return a Git man page      |
+
+### History Rewrite (`git_rewrite`)
+
+| Action             | Description                                                                       |
+| ------------------ | --------------------------------------------------------------------------------- |
+| `reword`           | Change one commit's message (HEAD amends in place; arbitrary via `filter-branch`) |
+| `squash`           | Combine the last N commits into one (requires `confirm=true`)                     |
+| `rewrite-messages` | Rewrite messages across a range via a SHA→message map (requires `confirm=true`)   |
+| `backup`           | Create a `rewrite-backup/<name>` branch before rewriting                          |
+| `restore`          | Hard-reset to a backup branch (requires `confirm=true`)                           |
+
+### Analytics (`git_analytics`)
+
+| Action         | Description                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| `contributors` | Per-author commits, +/- lines, first/last activity                       |
+| `churn`        | File hotspots (most commits / most lines changed)                        |
+| `activity`     | Commit frequency per day                                                 |
+| `summary`      | Branch/tag counts, total commits, top contributors, oldest/newest commit |
+| `file-stats`   | File-type breakdown, largest files, recently modified                    |
+
+### Pull Requests (`git_pr`)
+
+| Action   | Description                                                                      |
+| -------- | -------------------------------------------------------------------------------- |
+| `create` | Create a PR/MR on the detected forge (GitHub, GitLab, Forgejo, Gitea, Bitbucket) |
+| `list`   | List PRs/MRs (state filter)                                                      |
+| `merge`  | Merge a PR/MR (method: merge/squash/rebase)                                      |
+
+Uses the provider CLI (`gh`/`glab`/`tea`) when installed locally, otherwise the REST API with a `*_TOKEN` env var. Provider auto-detected from the `origin` remote; self-hosted instances use `GIT_FORGE_PROVIDER`.
+
+### External VCS Awareness
+
+| Tool                | Description                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| `git_but_check`     | Detect GitButler `but` CLI; prefer `but mcp`/`but`, run `but teardown` before git-mcp tools |
+| `git_jj_check`      | Detect Jujutsu `jj` CLI and `.jj/` management; prefer `jj` CLI for jj-managed repos         |
+| `git_tangled_check` | Detect Tangled hosting; git transport works, PRs via web UI                                 |
+| `git_entire_check`  | Detect Entire CLI and `.entire/` management; use `entire` for session/context queries       |
 
 ### Health Check (`git_ping`)
 
