@@ -18,6 +18,7 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 - [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.
 - [Workflow](/tools/workflow) — `git_workflow`: resumable multi-step workflow orchestration.
 - [Docs](/tools/docs) — `git_docs`: Git documentation search.
+- [External VCS](/tools/but) — `git_but_check` / `git_jj_check`: GitButler and Jujutsu awareness.
 
 ## Common Parameters
 
@@ -98,4 +99,11 @@ git_workflow  repo_path  [action=start|status|continue|abort|list] [workflow=sna
 
 ```text
 git_docs  action  query
+```
+
+### External VCS tools
+
+```text
+git_but_check  [response_format]
+git_jj_check   repo_path  [response_format]
 ```

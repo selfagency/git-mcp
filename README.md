@@ -20,6 +20,7 @@ Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and O
 - **Documentation lookup** — search git-scm.com and fetch man pages directly from the LLM
 - **MCP Resources** — URI-addressable read-only views of status, log, branches, and diff
 - **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for AI agents and coding agents; installable via [`skills-npm`](https://github.com/antfu/skills-npm) and [skill.sh](https://skills.sh/)
+- **External VCS awareness** — `git_but_check` / `git_jj_check` detect GitButler and Jujutsu and guide agents to prefer their native CLIs/MCP (with `but teardown` guidance) over git-mcp tools when appropriate
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
 - **Cross-platform** — macOS, Linux, Windows (Git for Windows)
 

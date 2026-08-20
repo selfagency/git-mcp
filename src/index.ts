@@ -14,6 +14,7 @@ import {
 import { SERVER_NAME, SERVER_VERSION } from './constants.js';
 import { registerGitResources } from './resources/git.resources.js';
 import { registerDocsTools } from './tools/docs.tools.js';
+import { registerExternalVcsTools } from './tools/external.tools.js';
 import { registerFlowTools } from './tools/flow.tools.js';
 import { registerGroupedTools } from './tools/grouped.tools.js';
 import { registerLfsTools } from './tools/lfs.tools.js';
@@ -25,6 +26,7 @@ const server = new McpServer({
 });
 
 registerGroupedTools(server);
+registerExternalVcsTools(server);
 registerLfsTools(server);
 registerFlowTools(server);
 registerWorkflowTools(server);

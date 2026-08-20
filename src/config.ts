@@ -92,6 +92,26 @@ export const ALLOW_FORCE_PUSH: boolean = process.env['GIT_ALLOW_FORCE_PUSH'] ===
 export const ALLOW_FLOW_HOOKS: boolean = process.env['GIT_ALLOW_FLOW_HOOKS'] === 'true';
 
 // ---------------------------------------------------------------------------
+// GitButler / Jujutsu awareness
+// ---------------------------------------------------------------------------
+
+/**
+ * When true, tools that detect and guide toward GitButler (`but`) and Jujutsu
+ * (`jj`) are enabled. These are read-only probes that tell agents whether to
+ * prefer the external VCS CLI/MCP over git-mcp's plain-Git tools.
+ * Enable via: GIT_ALLOW_BUT=true / GIT_ALLOW_JJ=true
+ */
+export const ALLOW_BUT: boolean = process.env['GIT_ALLOW_BUT'] === 'true';
+export const ALLOW_JJ: boolean = process.env['GIT_ALLOW_JJ'] === 'true';
+
+/**
+ * Override the executable path for the `but` and `jj` binaries.
+ * Set via: BUT_BINARY=<path> / JJ_BINARY=<path>
+ */
+export const BUT_BINARY: string = process.env['BUT_BINARY'] || 'but';
+export const JJ_BINARY: string = process.env['JJ_BINARY'] || 'jj';
+
+// ---------------------------------------------------------------------------
 // Commit / tag signing
 // ---------------------------------------------------------------------------
 
