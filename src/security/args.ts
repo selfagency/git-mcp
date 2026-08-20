@@ -4,6 +4,7 @@
  * other user inputs must be validated before being passed to git.
  */
 
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHAR_PATTERN = /[\u0000-\u001f\u007f]/;
 
 /** Rejects NUL/control chars and leading-dash values that Git would treat as options. */

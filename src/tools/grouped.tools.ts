@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ALLOW_FORCE_PUSH, ALLOW_NO_VERIFY, resolveRepoPath } from '../config.js';
-import { getGit, toGitError, validatePathArguments } from '../git/client.js';
+import { getGit, validatePathArguments } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { runBisectAction, runStashAction, runTagAction } from '../services/advanced.service.js';
 import {
