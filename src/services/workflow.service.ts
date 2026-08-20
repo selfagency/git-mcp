@@ -11,6 +11,7 @@ import type {
 } from '../types.js';
 
 const WORKFLOW_STATE_KEY = 'gitworkflow.state.json';
+const WORKFLOW_STATE_VERSION = 1;
 
 export interface WorkflowOptions {
   readonly action: WorkflowLifecycleAction;
@@ -116,6 +117,15 @@ async function readState(repoPath: string): Promise<WorkflowState | null> {
   try {
     const raw = await git.raw(['config', '--local', '--get', WORKFLOW_STATE_KEY]);
     const parsed = JSON.parse(raw.trim()) as WorkflowState;
+    // Validate the shape and reject malformed state instead of silently null.
+    if (!parsed || typeof parsed !== 'object' || !parsed.id || !parsed.workflow || !Array.isArray(parsed.steps)) {
+      throw new Error('Malformed workflow state');
+    }
+    // Reject state from a different repository (cross-repo leakage).
+    const identity = await getRepoIdentity(repoPath);
+    if (parsed.repoIdentity && parsed.repoIdentity !== identity) {
+      throw new Error('Workflow state belongs to a different repository');
+    }
     return parsed;
   } catch {
     return null;
@@ -455,7 +465,19 @@ function buildDefinition(repoPath: string, options: WorkflowOptions): WorkflowDe
   }
 }
 
-function buildInitialState(definition: WorkflowDefinition): WorkflowState {
+async function getRepoIdentity(repoPath: string): Promise<string> {
+  const git = getGit(repoPath);
+  try {
+    const head = await git.revparse(['HEAD']);
+    const remotes = await git.getRemotes(true);
+    const origin = remotes.find(r => r.name === 'origin') ?? remotes[0];
+    return `${origin?.refs?.fetch ?? 'local'}:${head.trim()}`;
+  } catch {
+    return 'unknown';
+  }
+}
+
+function buildInitialState(definition: WorkflowDefinition, repoIdentity: string): WorkflowState {
   return {
     id: randomUUID(),
     workflow: definition.workflow,
@@ -465,6 +487,8 @@ function buildInitialState(definition: WorkflowDefinition): WorkflowState {
     currentStep: 0,
     steps: definition.steps.map((step, index) => toStepResult(index, step.name)),
     params: definition.params,
+    version: WORKFLOW_STATE_VERSION,
+    repoIdentity,
   };
 }
 
@@ -673,7 +697,8 @@ async function runStartAction(
   }
 
   const definition = buildDefinition(repoPath, options);
-  const initial = buildInitialState(definition);
+  const repoIdentity = await getRepoIdentity(repoPath);
+  const initial = buildInitialState(definition, repoIdentity);
   await writeState(repoPath, initial);
   const completedState = await execute(repoPath, {
     definition,
