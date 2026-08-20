@@ -1570,7 +1570,7 @@ function registerGitContextTool(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         idempotentHint: true,
-        destructiveHint: false,
+        destructiveHint: true,
         openWorldHint: false,
       },
     },

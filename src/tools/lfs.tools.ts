@@ -48,7 +48,7 @@ export function registerLfsTools(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         idempotentHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         openWorldHint: true,
       },
     },
