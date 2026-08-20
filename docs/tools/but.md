@@ -40,4 +40,4 @@ Detects GitButler availability and returns guidance.
 
 ## Related
 
-- [GitButler skill](/skills/gitbutler-workflow) — git→but mapping and workflow guidance.
+- Bundled skill: `skills/gitbutler-workflow/SKILL.md` in the repository — git→but mapping and workflow guidance.

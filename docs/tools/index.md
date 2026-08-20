@@ -8,11 +8,11 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 
 ## Tool Groups
 
-- [Inspect](/tools/inspect) — `git_inspect`: read-only status, history, diff, and blame operations.
-- [Write](/tools/write) — `git_write`: staging, commit, reset, revert, and undo workflows.
-- [Branches](/tools/branch) — `git_branch`: list/create/delete/rename/checkout and upstream management.
-- [Remote](/tools/remote) — `git_remote`: remote management plus fetch/pull/push.
-- [Advanced](/tools/advanced) — `git_advanced`: stash, rebase, cherry-pick, bisect, tags, worktrees, submodules.
+- [Inspect](/tools/inspect) — `git_status`, `git_history`: read-only status, history, diff, and blame operations.
+- [Write](/tools/write) — `git_commits`: staging, commit, reset, revert, and undo workflows.
+- [Branches](/tools/branch) — `git_branches`: list/create/delete/rename/checkout and upstream management.
+- [Remote](/tools/remote) — `git_remotes`: remote management plus fetch/pull/push.
+- [Advanced](/tools/advanced) — `git_workspace`: stash, rebase, cherry-pick, bisect, tags, worktrees, submodules.
 - [Context](/tools/context) — `git_context` with actions `summary`, `search`, `get_config`, `set_config`, `aliases`.
 - [LFS](/tools/lfs) — `git_lfs`: Git Large File Storage.
 - [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.

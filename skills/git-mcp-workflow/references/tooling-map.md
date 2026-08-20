@@ -6,7 +6,7 @@ This reference translates common Git intentions into the correct `git-mcp` tool 
 
 ## Canonical Tool Surface
 
-The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `git_ping`, `git_rewrite`, `git_analytics`, `git_pr`, `git_but_check`, and `git_jj_check`. These are the only tools available. Use them exclusively.
+The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `git_ping`, `git_rewrite`, `git_analytics`, `git_pr`, `git_but_check`, `git_jj_check`, `git_tangled_check`, and `git_entire_check`. These are the only tools available. Use them exclusively.
 
 ---
 
