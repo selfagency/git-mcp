@@ -463,9 +463,14 @@ jobs:
   release:
     name: Build and Release
     needs: [ prepare-release, create-tag, detect-tag ]
+    # always() prevents a skipped 'detect-tag' job (its guard is push-only) from
+    # auto-skipping this job on workflow_dispatch; the real condition below still
+    # gates execution on the tag being ready.
     if: |
-      (github.event_name == 'workflow_dispatch' && needs.create-tag.outputs.release_tag != '' && needs.create-tag.outputs.ready == 'true') ||
-      (github.event_name == 'push' && needs.detect-tag.outputs.release_tag != '' && needs.detect-tag.outputs.ready == 'true')
+      always() && (
+        (github.event_name == 'workflow_dispatch' && needs.create-tag.outputs.release_tag != '' && needs.create-tag.outputs.ready == 'true') ||
+        (github.event_name == 'push' && needs.detect-tag.outputs.release_tag != '' && needs.detect-tag.outputs.ready == 'true')
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
