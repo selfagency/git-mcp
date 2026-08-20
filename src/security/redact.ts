@@ -11,11 +11,27 @@ const TOKEN_PATTERNS: RegExp[] = [
   /\b[A-Za-z0-9_-]{40,}\b/g,
 ];
 
-const CREDENTIAL_URL_PATTERN = /([a-z][a-z0-9+.-]*:\/\/)([^/@\s]+)@/gi;
-
-/** Masks credentials embedded in URLs (user:pass@host). */
+// Masks userinfo (user[:pass]) embedded in URLs, e.g.
+// https://user:secret@host/path -> https://***@host/path.
+// Implemented as a linear string scan instead of a regex to avoid
+// backtracking and duplicate-character-class smells.
 export function redactUrl(input: string): string {
-  return input.replace(CREDENTIAL_URL_PATTERN, '$1***@');
+  let out = input;
+  let cursor = 0;
+  while (cursor < out.length) {
+    const at = out.indexOf('@', cursor);
+    if (at === -1) break;
+    // Find the scheme start for the authority this '@' belongs to.
+    const scheme = out.slice(0, at).lastIndexOf('://');
+    if (scheme !== -1 && !/[\s/@]/.test(out.slice(scheme + 3, at))) {
+      out = out.slice(0, scheme + 3) + '***@' + out.slice(at + 1);
+      // Advance past the '***@' we just inserted (the @ is at scheme+6).
+      cursor = scheme + 7;
+    } else {
+      cursor = at + 1;
+    }
+  }
+  return out;
 }
 
 /** Masks bearer tokens, API keys, and long opaque secrets. */

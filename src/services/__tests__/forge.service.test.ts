@@ -28,36 +28,18 @@ beforeEach(() => {
 });
 
 describe('detectForge', () => {
-  it('detects GitHub from github.com', async () => {
-    const git = makeGit([{ name: 'origin', refs: { fetch: 'git@github.com:owner/repo.git' } }]);
+  it.each([
+    ['GitHub', 'github.com', 'owner/repo', 'github', 'owner', 'repo'],
+    ['GitLab', 'gitlab.com', 'group/project', 'gitlab', 'group', 'project'],
+    ['Forgejo', 'codeberg.org', 'owner/repo', 'forgejo', 'owner', 'repo'],
+    ['Gitea', 'gitea.com', 'owner/repo', 'gitea', 'owner', 'repo'],
+  ] as const)('detects %s from %s', async (name, host, path, provider, owner, repo) => {
+    const git = makeGit([{ name: 'origin', refs: { fetch: `https://${host}/${path}.git` } }]);
     vi.mocked(getGit).mockReturnValue(git as never);
     const result = await detectForge('/repo');
-    expect(result.provider).toBe('github');
-    expect(result.owner).toBe('owner');
-    expect(result.repo).toBe('repo');
-  });
-
-  it('detects GitLab from gitlab.com', async () => {
-    const git = makeGit([{ name: 'origin', refs: { fetch: 'https://gitlab.com/group/project.git' } }]);
-    vi.mocked(getGit).mockReturnValue(git as never);
-    const result = await detectForge('/repo');
-    expect(result.provider).toBe('gitlab');
-    expect(result.owner).toBe('group');
-    expect(result.repo).toBe('project');
-  });
-
-  it('detects Forgejo from codeberg.org', async () => {
-    const git = makeGit([{ name: 'origin', refs: { fetch: 'https://codeberg.org/owner/repo.git' } }]);
-    vi.mocked(getGit).mockReturnValue(git as never);
-    const result = await detectForge('/repo');
-    expect(result.provider).toBe('forgejo');
-  });
-
-  it('detects Gitea from gitea.com', async () => {
-    const git = makeGit([{ name: 'origin', refs: { fetch: 'https://gitea.com/owner/repo.git' } }]);
-    vi.mocked(getGit).mockReturnValue(git as never);
-    const result = await detectForge('/repo');
-    expect(result.provider).toBe('gitea');
+    expect(result.provider).toBe(provider);
+    expect(result.owner).toBe(owner);
+    expect(result.repo).toBe(repo);
   });
 
   it('detects Bitbucket from bitbucket.org', async () => {

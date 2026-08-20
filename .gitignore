@@ -246,3 +246,4 @@ $RECYCLE.BIN/
 # skills-npm symlinks (https://github.com/antfu/skills-npm)
 skills/npm-*
 
+.fallow/
