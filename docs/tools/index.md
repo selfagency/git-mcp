@@ -20,6 +20,7 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 - [Rewrite](/tools/rewrite) — `git_rewrite`: reword, squash, rewrite-messages, backup/restore history rewriting.
 - [Analytics](/tools/analytics) — `git_analytics`: contributors, churn, activity, summary, file-stats.
 - [Pull Requests](/tools/pr) — `git_pr`: create/list/merge PRs/MRs on GitHub, GitLab, Forgejo, Gitea, Bitbucket.
+- [Tangled & Entire](/tools/tangled-entire) — `git_tangled_check` / `git_entire_check`: Tangled and Entire awareness.
 - [Docs](/tools/docs) — `git_docs`: Git documentation search.
 - [External VCS](/tools/but) — `git_but_check` / `git_jj_check`: GitButler and Jujutsu awareness.
 
@@ -127,4 +128,11 @@ git_analytics  repo_path  action=contributors|churn|activity|summary|file-stats
 
 ```text
 git_pr  repo_path  action=create|list|merge  [title] [body] [base] [head] [state] [number] [method]
+```
+
+### Tangled & Entire tools
+
+```text
+git_tangled_check  repo_path  [response_format]
+git_entire_check   repo_path  [response_format]
 ```

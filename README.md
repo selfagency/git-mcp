@@ -24,6 +24,7 @@ Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and O
 - **History rewrite** — `git_rewrite`: reword, squash, rewrite-messages, and backup/restore for safe commit-history rewriting
 - **Repository analytics** — `git_analytics`: contributors, churn, activity, summary, and file-stats computed from local git history
 - **Pull requests** — `git_pr`: create/list/merge PRs/MRs on GitHub, GitLab, Forgejo, Gitea, and Bitbucket via provider CLI or REST API
+- **Tangled & Entire awareness** — `git_tangled_check` / `git_entire_check` detect Tangled hosting and Entire session/context management
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
 - **Cross-platform** — macOS, Linux, Windows (Git for Windows)
 

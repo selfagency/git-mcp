@@ -103,6 +103,8 @@ Before Git operations, consider whether the repo is managed by GitButler or Juju
 
 - `git_but_check` — if `but` is available, prefer `but mcp`/`but` commands; run `but teardown` before using git-mcp tools on a GitButler-managed repo
 - `git_jj_check` — if the repo is jj-managed (`.jj/`), prefer the `jj` CLI for all VCS operations
+- `git_tangled_check` — if the repo is hosted on Tangled, git transport works normally via git-mcp; pull requests are managed via the Tangled web UI (no documented PR API/CLI)
+- `git_entire_check` — if the repo is Entire-managed (`.entire/`), use the `entire` CLI for session/checkpoint/attribution queries
 
 ## Common tool families
 
@@ -115,6 +117,7 @@ Before Git operations, consider whether the repo is managed by GitButler or Juju
 - `git_analytics` for repository insights (contributors, churn, activity, summary, file-stats)
 - `git_pr` for pull requests / merge requests on GitHub, GitLab, Forgejo, Gitea, Bitbucket
 - `git_but_check` / `git_jj_check` for external VCS awareness
+- `git_tangled_check` / `git_entire_check` for Tangled/Entire awareness
 - `git_docs` when the user needs authoritative Git usage help
 
 See `references/tooling-map.md` for the full tool and action catalog.

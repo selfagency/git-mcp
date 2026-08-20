@@ -111,6 +111,19 @@ export const ALLOW_JJ: boolean = process.env['GIT_ALLOW_JJ'] === 'true';
 export const BUT_BINARY: string = process.env['BUT_BINARY'] || 'but';
 export const JJ_BINARY: string = process.env['JJ_BINARY'] || 'jj';
 
+/**
+ * When true, tools that detect and guide toward Tangled and Entire are enabled.
+ * Enable via: GIT_ALLOW_TANGLED=true / GIT_ALLOW_ENTIRE=true
+ */
+export const ALLOW_TANGLED: boolean = process.env['GIT_ALLOW_TANGLED'] === 'true';
+export const ALLOW_ENTIRE: boolean = process.env['GIT_ALLOW_ENTIRE'] === 'true';
+
+/**
+ * Override the executable path for the `entire` binary.
+ * Set via: ENTIRE_BINARY=<path>
+ */
+export const ENTIRE_BINARY: string = process.env['ENTIRE_BINARY'] || 'entire';
+
 // ---------------------------------------------------------------------------
 // Forge tokens (PR support)
 // ---------------------------------------------------------------------------

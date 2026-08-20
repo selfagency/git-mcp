@@ -341,6 +341,13 @@ The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `
 
 ---
 
+## `git_tangled_check` / `git_entire_check` — Tangled / Entire awareness
+
+- `git_tangled_check`: detect a Tangled host remote (tangled.org or self-hosted knot). Git transport works normally via git-mcp; pull requests are managed via the Tangled web UI (no documented PR API/CLI).
+- `git_entire_check`: detect the Entire CLI and `.entire/` management. Use the `entire` CLI for session/checkpoint/attribution queries.
+
+---
+
 ## `git_docs` — Official Git documentation
 
 **`action=search`**
