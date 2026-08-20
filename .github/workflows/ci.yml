@@ -7,6 +7,13 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref (branch or SHA) to run CI against (default: main)"
+        required: false
+        type: string
+        default: main
 
 permissions:
   contents: read

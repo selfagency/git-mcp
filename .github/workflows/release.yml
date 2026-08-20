@@ -185,7 +185,7 @@ jobs:
     timeout-minutes: 65
     permissions:
       contents: read
-      actions: read
+      actions: write
 
     steps:
       - name: Wait for CI workflow success
@@ -216,6 +216,7 @@ jobs:
             }
 
             const cancelledRunIds = new Set();
+            let dispatched = false;
             const deadline = Date.now() + timeoutMs;
 
             core.info(`Waiting for CI on ${targetSha.slice(0, 7)}...`);
@@ -226,7 +227,6 @@ jobs:
                 owner,
                 repo,
                 workflow_id: workflow.id,
-                branch: 'main',
                 head_sha: targetSha,
                 per_page: 10,
               });
@@ -234,6 +234,25 @@ jobs:
               const run = runsResp.data.workflow_runs.find(candidate => !cancelledRunIds.has(candidate.id));
 
               if (!run) {
+                // A token-pushed commit does NOT auto-trigger workflow runs, so
+                // we must dispatch CI explicitly. Dispatches run against a branch
+                // ref; main points at the release commit, so CI will report that SHA.
+                if (!dispatched) {
+                  core.info(`No run found for ${targetSha.slice(0, 7)}; dispatching CI via workflow_dispatch...`);
+                  try {
+                    await github.rest.actions.createWorkflowDispatch({
+                      owner,
+                      repo,
+                      workflow_id: workflow.id,
+                      ref: 'main',
+                    });
+                    dispatched = true;
+                  } catch (dispatchError) {
+                    core.warning(`workflow_dispatch failed: ${dispatchError.message}`);
+                    // Poll a bit longer — the push may still trigger CI in some
+                    // cases (e.g. a branch-name push event from a PAT).
+                  }
+                }
                 core.info('CI: waiting for run to appear...');
                 await sleep(pollMs);
                 continue;
