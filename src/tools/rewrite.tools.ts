@@ -20,6 +20,82 @@ function buildError(error: unknown): ReturnType<typeof buildToolError> {
   return buildToolError(error);
 }
 
+interface RewriteActionInput {
+  repoPath: string;
+  action: 'reword' | 'squash' | 'rewrite-messages' | 'backup' | 'restore';
+  ref?: string;
+  message?: string;
+  count?: number;
+  range?: string;
+  messages?: Record<string, string>;
+  name?: string;
+  confirm: boolean;
+}
+
+async function runRewriteAction({
+  repoPath,
+  action,
+  ref,
+  message,
+  count,
+  range,
+  messages,
+  name,
+  confirm,
+}: RewriteActionInput): Promise<unknown> {
+  if (action === 'backup') {
+    if (!name) {
+      throw new Error('name is required for backup.');
+    }
+    return createBackup(repoPath, { name });
+  }
+
+  if (action === 'restore') {
+    if (!name) {
+      throw new Error('name is required for restore.');
+    }
+    if (!confirm) {
+      throw new Error('restore requires confirm=true because it performs a hard reset.');
+    }
+    return restoreBackup(repoPath, { name });
+  }
+
+  if (action === 'reword') {
+    if (!message) {
+      throw new Error('message is required for reword.');
+    }
+    if (!confirm) {
+      throw new Error('reword requires confirm=true because it rewrites history.');
+    }
+    return rewordCommit(repoPath, { ref, message });
+  }
+
+  if (action === 'squash') {
+    if (!message) {
+      throw new Error('message is required for squash.');
+    }
+    if (!count) {
+      throw new Error('count is required for squash.');
+    }
+    if (!confirm) {
+      throw new Error('squash requires confirm=true because it rewrites history.');
+    }
+    return squashCommits(repoPath, { count, message });
+  }
+
+  // rewrite-messages
+  if (!range) {
+    throw new Error('range is required for rewrite-messages.');
+  }
+  if (!messages || Object.keys(messages).length === 0) {
+    throw new Error('messages mapping is required for rewrite-messages.');
+  }
+  if (!confirm) {
+    throw new Error('rewrite-messages requires confirm=true because it rewrites history.');
+  }
+  return rewriteMessages(repoPath, { range, messages });
+}
+
 export function registerRewriteTools(server: McpServer): void {
   server.registerTool(
     'git_rewrite',
@@ -77,74 +153,17 @@ export function registerRewriteTools(server: McpServer): void {
     }) => {
       try {
         const repoPath = resolveRepoPath(repo_path);
-
-        if (action === 'backup') {
-          if (!name) {
-            throw new Error('name is required for backup.');
-          }
-          const output = await createBackup(repoPath, { name });
-          return {
-            content: [{ type: 'text', text: render(output, response_format) }],
-            structuredContent: { output },
-          };
-        }
-
-        if (action === 'restore') {
-          if (!name) {
-            throw new Error('name is required for restore.');
-          }
-          if (!confirm) {
-            throw new Error('restore requires confirm=true because it performs a hard reset.');
-          }
-          const output = await restoreBackup(repoPath, { name });
-          return {
-            content: [{ type: 'text', text: render(output, response_format) }],
-            structuredContent: { output },
-          };
-        }
-
-        if (action === 'reword') {
-          if (!message) {
-            throw new Error('message is required for reword.');
-          }
-          if (!confirm) {
-            throw new Error('reword requires confirm=true because it rewrites history.');
-          }
-          const output = await rewordCommit(repoPath, { ref, message });
-          return {
-            content: [{ type: 'text', text: render(output, response_format) }],
-            structuredContent: { output },
-          };
-        }
-
-        if (action === 'squash') {
-          if (!message) {
-            throw new Error('message is required for squash.');
-          }
-          if (!count) {
-            throw new Error('count is required for squash.');
-          }
-          if (!confirm) {
-            throw new Error('squash requires confirm=true because it rewrites history.');
-          }
-          const output = await squashCommits(repoPath, { count, message });
-          return {
-            content: [{ type: 'text', text: render(output, response_format) }],
-            structuredContent: { output },
-          };
-        }
-
-        // rewrite-messages
-        if (!range) {
-          throw new Error('range is required for rewrite-messages.');
-        }
-        if (!messages || Object.keys(messages).length === 0) {
-          throw new Error('messages mapping is required for rewrite-messages.');
-        }
-        if (!confirm) {
-          throw new Error('rewrite-messages requires confirm=true because it rewrites history.');
-        }
-        const output = await rewriteMessages(repoPath, { range, messages });
+        const output = await runRewriteAction({
+          repoPath,
+          action,
+          ref,
+          message,
+          count,
+          range,
+          messages,
+          name,
+          confirm,
+        });
         return {
           content: [{ type: 'text', text: render(output, response_format) }],
           structuredContent: { output },

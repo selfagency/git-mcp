@@ -83,7 +83,9 @@ function sanitizeScpUrl(url: string): string {
     return `ssh://${sanitizedCreds}${host}/${path}`;
   }
 
-  const scpMatch = /^(.+?@)?([^:]+):(.+)$/.exec(url);
+  // Optional credential prefix then host:path. Using [^:]+ instead of .+@
+  // avoids the backtracking that an optional lazy group would introduce.
+  const scpMatch = /^([^@]+@)?([^:]+):(.+)$/.exec(url);
   if (scpMatch) {
     const [_, creds, host, path] = scpMatch;
     const sanitizedCreds = creds ? sanitizeCredentials(creds) : '';

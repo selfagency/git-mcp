@@ -1658,10 +1658,9 @@ async function getBackmergeBranches(
 
 async function getExistingReleaseBranch(git: GitClient, prefix: string): Promise<string | undefined> {
   const summary = await git.branch(['-a']);
-  const releaseBranches = summary.all
+  return summary.all
     .map(branch => branch.replace(/^remotes\/[^/]+\//, '').trim())
-    .filter(branch => branch.startsWith(prefix));
-  return releaseBranches[0];
+    .find(branch => branch.startsWith(prefix));
 }
 
 async function startTopic(

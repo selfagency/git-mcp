@@ -155,10 +155,9 @@ export const BITBUCKET_TOKEN: string | undefined = process.env['BITBUCKET_TOKEN'
 export type ForgeProviderName = 'github' | 'gitlab' | 'forgejo' | 'gitea' | 'bitbucket';
 const FORGE_PROVIDERS: readonly ForgeProviderName[] = ['github', 'gitlab', 'forgejo', 'gitea', 'bitbucket'];
 const rawProvider = process.env['GIT_FORGE_PROVIDER'];
-export const GIT_FORGE_PROVIDER: ForgeProviderName | undefined = rawProvider
-  ? FORGE_PROVIDERS.includes(rawProvider as ForgeProviderName)
-    ? (rawProvider as ForgeProviderName)
-    : undefined
+const validProvider = FORGE_PROVIDERS.includes(rawProvider as ForgeProviderName);
+export const GIT_FORGE_PROVIDER: ForgeProviderName | undefined = validProvider
+  ? (rawProvider as ForgeProviderName)
   : undefined;
 
 // ---------------------------------------------------------------------------

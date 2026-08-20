@@ -67,7 +67,7 @@ export async function searchGitDocs(query: string): Promise<GitDocsSearchRespons
   const results: GitDocsSearchResult[] = [];
 
   // Extract result items via regex — site uses <li> blocks with <a> and <p>
-  const listMatch = /<ul[^>]*class="[^"]*result-list[^"]*"[^>]*>([\s\S]*?)<\/ul>/i.exec(html);
+  const listMatch = /<ul[^>]*>([\s\S]*?)<\/ul>/i.exec(html);
   const listHtml = listMatch ? listMatch[1] : html;
 
   const itemRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;

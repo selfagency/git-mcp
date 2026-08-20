@@ -58,6 +58,38 @@ function registerGitStashTool(server: McpServer): void {
   );
 }
 
+function buildRebaseArgs(
+  action: 'start' | 'continue' | 'abort' | 'skip',
+  opts: {
+    interactive: boolean;
+    autosquash: boolean;
+    merges: boolean;
+    onto?: string;
+    upstream?: string;
+    branch?: string;
+  },
+): string[] {
+  switch (action) {
+    case 'continue':
+      return ['rebase', '--continue'];
+    case 'abort':
+      return ['rebase', '--abort'];
+    case 'skip':
+      return ['rebase', '--skip'];
+    default: {
+      const args = ['rebase'];
+      if (opts.interactive) args.push('-i');
+      if (opts.autosquash) args.push('--autosquash');
+      if (opts.merges) args.push('--rebase-merges');
+      if (opts.onto) args.push('--onto', opts.onto);
+      if (!opts.upstream) throw new Error('upstream is required for rebase start.');
+      args.push(opts.upstream);
+      if (opts.branch) args.push(opts.branch);
+      return args;
+    }
+  }
+}
+
 /** Shared rebase tool. */
 function registerGitRebaseTool(server: McpServer): void {
   server.registerTool(
@@ -102,21 +134,7 @@ function registerGitRebaseTool(server: McpServer): void {
       try {
         const repoPath = resolveRepoPath(repo_path);
         const git = getGit(repoPath);
-        const args = ['rebase'];
-
-        if (action === 'continue') args.push('--continue');
-        else if (action === 'abort') args.push('--abort');
-        else if (action === 'skip') args.push('--skip');
-        else {
-          if (interactive) args.push('-i');
-          if (autosquash) args.push('--autosquash');
-          if (merges) args.push('--rebase-merges');
-          if (onto) args.push('--onto', onto);
-          if (!upstream) throw new Error('upstream is required for rebase start.');
-          args.push(upstream);
-          if (branch) args.push(branch);
-        }
-
+        const args = buildRebaseArgs(action, { interactive, autosquash, merges, onto, upstream, branch });
         const rawOutput = await git.raw(args);
         const output = rawOutput.trim() || 'Rebase completed.';
         return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
@@ -125,6 +143,36 @@ function registerGitRebaseTool(server: McpServer): void {
       }
     },
   );
+}
+
+function buildCherryPickArgs(
+  action: 'start' | 'continue' | 'abort',
+  opts: {
+    mainline?: number;
+    record_origin: boolean;
+    no_commit: boolean;
+    strategy?: string;
+    strategy_options?: string[];
+    refs?: string[];
+  },
+): string[] {
+  switch (action) {
+    case 'continue':
+      return ['cherry-pick', '--continue'];
+    case 'abort':
+      return ['cherry-pick', '--abort'];
+    default: {
+      const args = ['cherry-pick'];
+      if (opts.mainline !== undefined) args.push('--mainline', String(opts.mainline));
+      if (opts.record_origin) args.push('-x');
+      if (opts.no_commit) args.push('--no-commit');
+      if (opts.strategy) args.push('--strategy', opts.strategy);
+      for (const option of opts.strategy_options ?? []) args.push('--strategy-option', option);
+      if (!opts.refs || opts.refs.length === 0) throw new Error('refs is required for cherry_pick start.');
+      args.push(...opts.refs);
+      return args;
+    }
+  }
 }
 
 /** Shared cherry-pick tool. */
@@ -171,20 +219,14 @@ function registerGitCherryPickTool(server: McpServer): void {
       try {
         const repoPath = resolveRepoPath(repo_path);
         const git = getGit(repoPath);
-        const args = ['cherry-pick'];
-
-        if (action === 'continue') args.push('--continue');
-        else if (action === 'abort') args.push('--abort');
-        else {
-          if (mainline !== undefined) args.push('--mainline', String(mainline));
-          if (record_origin) args.push('-x');
-          if (no_commit) args.push('--no-commit');
-          if (strategy) args.push('--strategy', strategy);
-          for (const option of strategy_options ?? []) args.push('--strategy-option', option);
-          if (!refs || refs.length === 0) throw new Error('refs is required for cherry_pick start.');
-          args.push(...refs);
-        }
-
+        const args = buildCherryPickArgs(action, {
+          mainline,
+          record_origin,
+          no_commit,
+          strategy,
+          strategy_options,
+          refs,
+        });
         const rawOutput = await git.raw(args);
         const output = rawOutput.trim() || 'Cherry-pick completed.';
         return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
@@ -193,6 +235,42 @@ function registerGitCherryPickTool(server: McpServer): void {
       }
     },
   );
+}
+
+function buildMergeArgs(
+  action: 'start' | 'continue' | 'abort',
+  opts: {
+    no_ff: boolean;
+    ff_only: boolean;
+    squash: boolean;
+    no_commit: boolean;
+    log: boolean;
+    strategy?: string;
+    strategy_options?: string[];
+    conflict_style?: 'merge' | 'diff3' | 'zdiff3';
+    refs?: string[];
+  },
+): string[] {
+  switch (action) {
+    case 'continue':
+      return ['merge', '--continue'];
+    case 'abort':
+      return ['merge', '--abort'];
+    default: {
+      const args = ['merge'];
+      if (opts.no_ff) args.push('--no-ff');
+      if (opts.ff_only) args.push('--ff-only');
+      if (opts.squash) args.push('--squash');
+      if (opts.no_commit) args.push('--no-commit');
+      if (opts.log) args.push('--log');
+      if (opts.strategy) args.push('--strategy', opts.strategy);
+      if (opts.conflict_style) args.push(`--conflict=${opts.conflict_style}`);
+      for (const option of opts.strategy_options ?? []) args.push('--strategy-option', option);
+      if (!opts.refs || opts.refs.length === 0) throw new Error('refs is required for merge start.');
+      args.push(...opts.refs);
+      return args;
+    }
+  }
 }
 
 /** Shared merge tool. */
@@ -248,23 +326,17 @@ function registerGitMergeTool(server: McpServer): void {
       try {
         const repoPath = resolveRepoPath(repo_path);
         const git = getGit(repoPath);
-        const args = ['merge'];
-
-        if (action === 'continue') args.push('--continue');
-        else if (action === 'abort') args.push('--abort');
-        else {
-          if (no_ff) args.push('--no-ff');
-          if (ff_only) args.push('--ff-only');
-          if (squash) args.push('--squash');
-          if (no_commit) args.push('--no-commit');
-          if (log) args.push('--log');
-          if (strategy) args.push('--strategy', strategy);
-          if (conflict_style) args.push(`--conflict=${conflict_style}`);
-          for (const option of strategy_options ?? []) args.push('--strategy-option', option);
-          if (!refs || refs.length === 0) throw new Error('refs is required for merge start.');
-          args.push(...refs);
-        }
-
+        const args = buildMergeArgs(action, {
+          no_ff,
+          ff_only,
+          squash,
+          no_commit,
+          log,
+          strategy,
+          strategy_options,
+          conflict_style,
+          refs,
+        });
         const rawOutput = await git.raw(args);
         const output = rawOutput.trim() || 'Merge completed.';
         return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
@@ -380,6 +452,59 @@ function registerGitTagTool(server: McpServer): void {
   );
 }
 
+function buildWorktreeArgs(
+  action: 'add' | 'list' | 'remove' | 'lock' | 'unlock' | 'prune' | 'repair',
+  opts: {
+    path?: string;
+    branch?: string;
+    force: boolean;
+    detached: boolean;
+    lock_reason?: string;
+    expire?: string;
+    paths?: string[];
+  },
+): { args: string[]; fallback: string } {
+  switch (action) {
+    case 'list':
+      return { args: ['worktree', 'list', '--porcelain'], fallback: 'No worktrees.' };
+    case 'remove': {
+      if (!opts.path) throw new Error('path is required for worktree remove.');
+      const args = ['worktree', 'remove'];
+      if (opts.force) args.push('--force');
+      args.push(opts.path);
+      return { args, fallback: `Removed worktree ${opts.path}.` };
+    }
+    case 'lock':
+    case 'unlock': {
+      if (!opts.path) throw new Error('path is required for worktree lock/unlock.');
+      const args = ['worktree', action, opts.path];
+      if (action === 'lock' && opts.lock_reason) args.push('--reason', opts.lock_reason);
+      return { args, fallback: `Worktree ${action} completed for ${opts.path}.` };
+    }
+    case 'prune': {
+      const args = ['worktree', 'prune'];
+      if (opts.expire) args.push(`--expire=${opts.expire}`);
+      return { args, fallback: 'Worktree prune completed.' };
+    }
+    case 'repair': {
+      const args = ['worktree', 'repair'];
+      if (opts.paths && opts.paths.length > 0) args.push(...opts.paths);
+      return { args, fallback: 'Worktree repair completed.' };
+    }
+    case 'add': {
+      if (!opts.path) throw new Error('path is required for worktree add.');
+      const args = ['worktree', 'add'];
+      if (opts.force) args.push('--force');
+      if (opts.detached) args.push('--detach');
+      if (opts.lock_reason) args.push('--lock', '--reason', opts.lock_reason);
+      args.push(opts.path);
+      if (opts.branch) args.push(opts.branch);
+      else if (!opts.detached) throw new Error('branch is required for worktree add unless detached=true.');
+      return { args, fallback: `Added worktree at ${opts.path}.` };
+    }
+  }
+}
+
 /** Shared worktree tool. */
 function registerGitWorktreeTool(server: McpServer): void {
   server.registerTool(
@@ -427,64 +552,70 @@ function registerGitWorktreeTool(server: McpServer): void {
       try {
         const repoPath = resolveRepoPath(repo_path);
         const git = getGit(repoPath);
-
-        if (action === 'list') {
-          const rawOutput = await git.raw(['worktree', 'list', '--porcelain']);
-          const output = rawOutput.trim() || 'No worktrees.';
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (action === 'remove') {
-          if (!path) throw new Error('path is required for worktree remove.');
-          const args = ['worktree', 'remove'];
-          if (force) args.push('--force');
-          args.push(path);
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || `Removed worktree ${path}.`;
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (action === 'lock' || action === 'unlock') {
-          if (!path) throw new Error('path is required for worktree lock/unlock.');
-          const args = ['worktree', action, path];
-          if (action === 'lock' && lock_reason) args.push('--reason', lock_reason);
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || `Worktree ${action} completed for ${path}.`;
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (action === 'prune') {
-          const args = ['worktree', 'prune'];
-          if (expire) args.push(`--expire=${expire}`);
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || 'Worktree prune completed.';
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (action === 'repair') {
-          const args = ['worktree', 'repair'];
-          if (paths && paths.length > 0) args.push(...paths);
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || 'Worktree repair completed.';
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (!path) throw new Error('path is required for worktree add.');
-        const args = ['worktree', 'add'];
-        if (force) args.push('--force');
-        if (detached) args.push('--detach');
-        if (lock_reason) args.push('--lock', '--reason', lock_reason);
-        args.push(path);
-        if (branch) args.push(branch);
-        else if (!detached) throw new Error('branch is required for worktree add unless detached=true.');
+        const { args, fallback } = buildWorktreeArgs(action, {
+          path,
+          branch,
+          force,
+          detached,
+          lock_reason,
+          expire,
+          paths,
+        });
         const rawOutput = await git.raw(args);
-        const output = rawOutput.trim() || `Added worktree at ${path}.`;
+        const output = rawOutput.trim() || fallback;
         return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
       } catch (error) {
         return buildError(error);
       }
     },
   );
+}
+
+function buildSubmoduleArgs(
+  action: 'add' | 'list' | 'update' | 'sync' | 'set_branch',
+  opts: {
+    url?: string;
+    path?: string;
+    branch?: string;
+    recursive: boolean;
+    remote: boolean;
+    depth?: number;
+    jobs?: number;
+    paths?: string[];
+  },
+  repoPath: string,
+): { args: string[]; fallback: string } {
+  switch (action) {
+    case 'list':
+      return { args: ['submodule', 'status'], fallback: 'No submodules.' };
+    case 'sync': {
+      const args = ['submodule', 'sync'];
+      if (opts.recursive) args.push('--recursive');
+      return { args, fallback: 'Submodule sync complete.' };
+    }
+    case 'update': {
+      const args = ['submodule', 'update', '--init'];
+      if (opts.recursive) args.push('--recursive');
+      if (opts.remote) args.push('--remote');
+      if (opts.depth !== undefined) args.push('--depth', String(opts.depth));
+      if (opts.jobs !== undefined) args.push('--jobs', String(opts.jobs));
+      if (opts.paths && opts.paths.length > 0) args.push('--', ...validatePathArguments(repoPath, opts.paths));
+      return { args, fallback: 'Submodule update complete.' };
+    }
+    case 'set_branch': {
+      if (!opts.branch || !opts.path) throw new Error('branch and path are required for submodule set_branch.');
+      const [safePath] = validatePathArguments(repoPath, [opts.path]);
+      return {
+        args: ['submodule', 'set-branch', '--branch', opts.branch, '--', safePath],
+        fallback: `Set submodule ${safePath} branch to ${opts.branch}.`,
+      };
+    }
+    case 'add': {
+      if (!opts.url || !opts.path) throw new Error('url and path are required for submodule add.');
+      const [safePath] = validatePathArguments(repoPath, [opts.path]);
+      return { args: ['submodule', 'add', opts.url, safePath], fallback: `Added submodule ${safePath}.` };
+    }
+  }
 }
 
 /** Shared submodule tool. */
@@ -537,45 +668,13 @@ function registerGitSubmoduleTool(server: McpServer): void {
       try {
         const repoPath = resolveRepoPath(repo_path);
         const git = getGit(repoPath);
-
-        if (action === 'list') {
-          const rawOutput = await git.raw(['submodule', 'status']);
-          const output = rawOutput.trim() || 'No submodules.';
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (action === 'sync') {
-          const args = ['submodule', 'sync'];
-          if (recursive) args.push('--recursive');
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || 'Submodule sync complete.';
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (action === 'update') {
-          const args = ['submodule', 'update', '--init'];
-          if (recursive) args.push('--recursive');
-          if (remote) args.push('--remote');
-          if (depth !== undefined) args.push('--depth', String(depth));
-          if (jobs !== undefined) args.push('--jobs', String(jobs));
-          if (paths && paths.length > 0) args.push('--', ...validatePathArguments(repoPath, paths));
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || 'Submodule update complete.';
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (action === 'set_branch') {
-          if (!branch || !path) throw new Error('branch and path are required for submodule set_branch.');
-          const [safePath] = validatePathArguments(repoPath, [path]);
-          const rawOutput = await git.raw(['submodule', 'set-branch', '--branch', branch, '--', safePath]);
-          const output = rawOutput.trim() || `Set submodule ${safePath} branch to ${branch}.`;
-          return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
-        }
-
-        if (!url || !path) throw new Error('url and path are required for submodule add.');
-        const [safePath] = validatePathArguments(repoPath, [path]);
-        const rawOutput = await git.raw(['submodule', 'add', url, safePath]);
-        const output = rawOutput.trim() || `Added submodule ${safePath}.`;
+        const { args, fallback } = buildSubmoduleArgs(
+          action,
+          { url, path, branch, recursive, remote, depth, jobs, paths },
+          repoPath,
+        );
+        const rawOutput = await git.raw(args);
+        const output = rawOutput.trim() || fallback;
         return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
       } catch (error) {
         return buildError(error);

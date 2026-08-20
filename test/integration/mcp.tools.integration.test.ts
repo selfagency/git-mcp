@@ -1298,40 +1298,20 @@ describe('git_workspace rebase action', () => {
     expect(rawArgs).toContain('feature/test');
   });
 
-  it('continues a rebase', async () => {
+  it.each([
+    ['continue', '--continue'],
+    ['abort', '--abort'],
+    ['skip', '--skip'],
+  ] as const)('runs rebase %s', async (op, flag) => {
     mockGit.raw.mockResolvedValue('');
 
     await callTool(server, 'git_workspace', {
       repo_path: '/repo',
       action: 'rebase',
-      rebase_action: 'continue',
+      rebase_action: op,
     });
     const [rawArgs] = mockGit.raw.mock.calls[0];
-    expect(rawArgs).toContain('--continue');
-  });
-
-  it('aborts a rebase', async () => {
-    mockGit.raw.mockResolvedValue('');
-
-    await callTool(server, 'git_workspace', {
-      repo_path: '/repo',
-      action: 'rebase',
-      rebase_action: 'abort',
-    });
-    const [rawArgs] = mockGit.raw.mock.calls[0];
-    expect(rawArgs).toContain('--abort');
-  });
-
-  it('skips a commit during rebase', async () => {
-    mockGit.raw.mockResolvedValue('');
-
-    await callTool(server, 'git_workspace', {
-      repo_path: '/repo',
-      action: 'rebase',
-      rebase_action: 'skip',
-    });
-    const [rawArgs] = mockGit.raw.mock.calls[0];
-    expect(rawArgs).toContain('--skip');
+    expect(rawArgs).toContain(flag);
   });
 });
 

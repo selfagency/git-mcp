@@ -182,25 +182,15 @@ describe('runBisectAction', () => {
     expect(result).toContain('bad=HEAD');
   });
 
-  it('marks current commit as good', async () => {
+  it.each([
+    ['good', undefined, ['bisect', 'good']],
+    ['bad', 'HEAD~3', ['bisect', 'bad', 'HEAD~3']],
+    ['skip', undefined, ['bisect', 'skip']],
+  ] as const)('runs bisect %s with ref %j', async (action, ref, expected) => {
     const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
     vi.mocked(getGit).mockReturnValue(git as any);
-    await runBisectAction('/repo', { action: 'good' });
-    expect(git.raw).toHaveBeenCalledWith(['bisect', 'good']);
-  });
-
-  it('marks commit as bad with ref', async () => {
-    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
-    vi.mocked(getGit).mockReturnValue(git as any);
-    await runBisectAction('/repo', { action: 'bad', ref: 'HEAD~3' });
-    expect(git.raw).toHaveBeenCalledWith(['bisect', 'bad', 'HEAD~3']);
-  });
-
-  it('skips commit', async () => {
-    const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
-    vi.mocked(getGit).mockReturnValue(git as any);
-    await runBisectAction('/repo', { action: 'skip' });
-    expect(git.raw).toHaveBeenCalledWith(['bisect', 'skip']);
+    await runBisectAction('/repo', { action, ...(ref ? { ref } : {}) } as never);
+    expect(git.raw).toHaveBeenCalledWith(expected);
   });
 
   it('throws when run has no command', async () => {
