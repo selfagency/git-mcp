@@ -66,6 +66,12 @@ function registerGitStatusTool(server: McpServer): void {
         base_branch: z.string().default('main'),
         response_format: ResponseFormatSchema,
       },
+      outputSchema: z.object({
+        status: z.unknown().optional(),
+        summary: z.unknown().optional(),
+        output: z.unknown().optional(),
+        base_branch: z.string().optional(),
+      }),
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -167,6 +173,13 @@ function registerGitHistoryTool(server: McpServer): void {
         ref: z.string().optional(),
         response_format: ResponseFormatSchema,
       },
+      outputSchema: z.object({
+        commits: z.array(z.unknown()).optional(),
+        output: z.unknown().optional(),
+        blame: z.unknown().optional(),
+        reflog: z.unknown().optional(),
+        contributors: z.unknown().optional(),
+      }),
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -588,6 +601,10 @@ function registerGitBranchesTool(server: McpServer): void {
         count: z.number().int().min(1).max(100).default(10),
         response_format: ResponseFormatSchema,
       },
+      outputSchema: z.object({
+        branches: z.array(z.unknown()).optional(),
+        output: z.unknown().optional(),
+      }),
       annotations: {
         readOnlyHint: false,
         idempotentHint: false,
