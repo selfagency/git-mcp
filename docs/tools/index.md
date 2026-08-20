@@ -18,6 +18,8 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 - [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.
 - [Workflow](/tools/workflow) — `git_workflow`: resumable multi-step workflow orchestration.
 - [Rewrite](/tools/rewrite) — `git_rewrite`: reword, squash, rewrite-messages, backup/restore history rewriting.
+- [Analytics](/tools/analytics) — `git_analytics`: contributors, churn, activity, summary, file-stats.
+- [Pull Requests](/tools/pr) — `git_pr`: create/list/merge PRs/MRs on GitHub, GitLab, Forgejo, Gitea, Bitbucket.
 - [Docs](/tools/docs) — `git_docs`: Git documentation search.
 - [External VCS](/tools/but) — `git_but_check` / `git_jj_check`: GitButler and Jujutsu awareness.
 
@@ -113,4 +115,16 @@ git_jj_check   repo_path  [response_format]
 
 ```text
 git_rewrite  repo_path  action=reword|squash|rewrite-messages|backup|restore  [ref] [message] [count] [range] [messages] [name] [confirm]
+```
+
+### Analytics tool
+
+```text
+git_analytics  repo_path  action=contributors|churn|activity|summary|file-stats
+```
+
+### Pull Request tool
+
+```text
+git_pr  repo_path  action=create|list|merge  [title] [body] [base] [head] [state] [number] [method]
 ```

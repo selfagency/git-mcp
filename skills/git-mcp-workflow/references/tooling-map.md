@@ -6,7 +6,7 @@ This reference translates common Git intentions into the correct `git-mcp` tool 
 
 ## Canonical Tool Surface
 
-The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, and `git_ping`. These are the only tools available. Use them exclusively.
+The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `git_ping`, `git_rewrite`, `git_analytics`, `git_pr`, `git_but_check`, and `git_jj_check`. These are the only tools available. Use them exclusively.
 
 ---
 
@@ -297,6 +297,50 @@ The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, a
 
 ---
 
+## `git_rewrite` — History rewriting
+
+**actions**: `reword` / `squash` / `rewrite-messages` / `backup` / `restore`
+
+- `reword`: change one commit's message. HEAD amends in place; arbitrary commit uses `filter-branch --msg-filter` (requires `confirm=true` for non-HEAD).
+- `squash`: combine the last `count` commits into one with `message` (requires `confirm=true`).
+- `rewrite-messages`: rewrite messages across `range` via a SHA→message `messages` map (requires `confirm=true`).
+- `backup`: create a `rewrite-backup/<name>` branch before rewriting.
+- `restore`: hard-reset to a backup branch (requires `confirm=true`).
+
+---
+
+## `git_analytics` — repository insights
+
+**actions**: `contributors` / `churn` / `activity` / `summary` / `file-stats`
+
+- `contributors`: per-author commits, +/- lines, first/last activity.
+- `churn`: file hotspots (most commits / most lines changed).
+- `activity`: commit frequency per day.
+- `summary`: branch/tag counts, total commits, top contributors, oldest/newest commit.
+- `file-stats`: file-type breakdown, largest files, recently modified.
+
+---
+
+## `git_pr` — pull requests / merge requests
+
+**actions**: `create` / `list` / `merge`
+
+- Provider auto-detected from the `origin` remote: GitHub (`gh`), GitLab (`glab`), Forgejo/Gitea (`tea`), Bitbucket (REST).
+- Uses the provider CLI when installed locally, otherwise the REST API with a `*_TOKEN` env var.
+- `create`: `title` required; optional `body`, `base` (default main), `head` (default HEAD).
+- `list`: optional `state` (open/closed/all).
+- `merge`: `number` required; optional `method` (merge/squash/rebase).
+- Self-hosted: set `GIT_FORGE_PROVIDER` to override detection.
+
+---
+
+## `git_but_check` / `git_jj_check` — external VCS awareness
+
+- `git_but_check`: detect GitButler `but` CLI. When present, prefer `but mcp`/`but`; run `but teardown` before git-mcp tools on a GitButler-managed repo.
+- `git_jj_check`: detect Jujutsu `jj` CLI and `.jj/` management. Prefer `jj` CLI for jj-managed repos.
+
+---
+
 ## `git_docs` — Official Git documentation
 
 **`action=search`**
@@ -385,6 +429,6 @@ Use adjacent tooling or, if unavoidable, the shell only for:
 
 - Interactive patch staging (`git add -p`)
 - Interactive rebase editing (squash/fixup/reword/reorder/drop choreography needing a text editor)
-- Repository-wide history rewriting (`git filter-repo`)
-- GitHub PR lifecycle and release object management
+- Repository-wide history rewriting beyond `git_rewrite` (`git filter-repo`)
+- GitHub Releases and review-thread/approval management (use `git_pr` for PR/MR lifecycle)
 - Project-specific hook installation commands

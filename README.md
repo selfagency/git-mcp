@@ -22,6 +22,8 @@ Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and O
 - **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for AI agents and coding agents; installable via [`skills-npm`](https://github.com/antfu/skills-npm) and [skill.sh](https://skills.sh/)
 - **External VCS awareness** — `git_but_check` / `git_jj_check` detect GitButler and Jujutsu and guide agents to prefer their native CLIs/MCP (with `but teardown` guidance) over git-mcp tools when appropriate
 - **History rewrite** — `git_rewrite`: reword, squash, rewrite-messages, and backup/restore for safe commit-history rewriting
+- **Repository analytics** — `git_analytics`: contributors, churn, activity, summary, and file-stats computed from local git history
+- **Pull requests** — `git_pr`: create/list/merge PRs/MRs on GitHub, GitLab, Forgejo, Gitea, and Bitbucket via provider CLI or REST API
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
 - **Cross-platform** — macOS, Linux, Windows (Git for Windows)
 

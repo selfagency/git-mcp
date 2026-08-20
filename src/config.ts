@@ -112,6 +112,29 @@ export const BUT_BINARY: string = process.env['BUT_BINARY'] || 'but';
 export const JJ_BINARY: string = process.env['JJ_BINARY'] || 'jj';
 
 // ---------------------------------------------------------------------------
+// Forge tokens (PR support)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tokens for forge PR operations. Used as a fallback when the provider CLI
+ * (gh/glab/tea) is not installed locally.
+ * Set via: GITHUB_TOKEN / GITLAB_TOKEN / FORGEJO_TOKEN / BITBUCKET_TOKEN
+ */
+export const GITHUB_TOKEN: string | undefined = process.env['GITHUB_TOKEN'] || undefined;
+export const GITLAB_TOKEN: string | undefined = process.env['GITLAB_TOKEN'] || undefined;
+export const FORGEJO_TOKEN: string | undefined = process.env['FORGEJO_TOKEN'] || undefined;
+export const BITBUCKET_TOKEN: string | undefined = process.env['BITBUCKET_TOKEN'] || undefined;
+
+/**
+ * Explicit forge provider override for self-hosted instances that cannot be
+ * detected from the remote hostname. Values: github | gitlab | forgejo | gitea | bitbucket
+ * Set via: GIT_FORGE_PROVIDER=<provider>
+ */
+export type ForgeProviderName = 'github' | 'gitlab' | 'forgejo' | 'gitea' | 'bitbucket';
+export const GIT_FORGE_PROVIDER: ForgeProviderName | undefined =
+  (process.env['GIT_FORGE_PROVIDER'] as ForgeProviderName) || undefined;
+
+// ---------------------------------------------------------------------------
 // Commit / tag signing
 // ---------------------------------------------------------------------------
 
