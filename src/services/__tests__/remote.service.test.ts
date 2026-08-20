@@ -205,4 +205,27 @@ describe('pushRemote', () => {
     await pushRemote('/repo', { setUpstream: false, forceWithLease: false, tags: true });
     expect(git.push).toHaveBeenCalledWith(undefined, undefined, ['--tags']);
   });
+
+  it('resolves default remote when branch is given without a remote', async () => {
+    const git = makeGit({ push: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as any);
+    await pushRemote('/repo', { branch: 'feat', setUpstream: true, forceWithLease: false, tags: false });
+    // Regression: simple-git splices `branch` into the remote slot when remote is undefined,
+    // producing `git push <branch>` instead of `git push origin <branch>`. The branch must
+    // land in the refspec slot with the default remote resolved.
+    expect(git.push).toHaveBeenCalledWith('origin', 'feat', ['--set-upstream']);
+  });
+
+  it('keeps explicit remote and branch', async () => {
+    const git = makeGit({ push: vi.fn().mockResolvedValue('') });
+    vi.mocked(getGit).mockReturnValue(git as any);
+    await pushRemote('/repo', {
+      remote: 'upstream',
+      branch: 'feat',
+      setUpstream: false,
+      forceWithLease: false,
+      tags: false,
+    });
+    expect(git.push).toHaveBeenCalledWith('upstream', 'feat', []);
+  });
 });

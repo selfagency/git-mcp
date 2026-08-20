@@ -209,6 +209,12 @@ export async function pushRemote(repoPath: string, options: PushOptions): Promis
     pushOptions.push('--no-verify');
   }
 
-  await git.push(options.remote, options.branch, pushOptions);
+  // simple-git's push(remote, branch, args) splices `branch` into the remote slot when
+  // `remote` is undefined, producing `git push <branch>` instead of `git push origin <branch>`.
+  // When a branch is given without a remote, resolve the default remote so the branch lands
+  // in the refspec slot (matches `git push origin <branch>`).
+  const remote = options.remote ?? (options.branch ? 'origin' : undefined);
+  const branch = remote ? options.branch : undefined;
+  await git.push(remote, branch, pushOptions);
   return `Pushed ${formatRemoteBranch(options.remote, options.branch)}.`;
 }
