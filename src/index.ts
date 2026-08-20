@@ -18,6 +18,7 @@ import { registerExternalVcsTools } from './tools/external.tools.js';
 import { registerFlowTools } from './tools/flow.tools.js';
 import { registerGroupedTools } from './tools/grouped.tools.js';
 import { registerLfsTools } from './tools/lfs.tools.js';
+import { registerRewriteTools } from './tools/rewrite.tools.js';
 import { registerWorkflowTools } from './tools/workflow.tools.js';
 
 const server = new McpServer({
@@ -28,6 +29,7 @@ const server = new McpServer({
 registerGroupedTools(server);
 registerExternalVcsTools(server);
 registerLfsTools(server);
+registerRewriteTools(server);
 registerFlowTools(server);
 registerWorkflowTools(server);
 registerDocsTools(server);

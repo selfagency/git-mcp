@@ -17,6 +17,7 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 - [LFS](/tools/lfs) — `git_lfs`: Git Large File Storage.
 - [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.
 - [Workflow](/tools/workflow) — `git_workflow`: resumable multi-step workflow orchestration.
+- [Rewrite](/tools/rewrite) — `git_rewrite`: reword, squash, rewrite-messages, backup/restore history rewriting.
 - [Docs](/tools/docs) — `git_docs`: Git documentation search.
 - [External VCS](/tools/but) — `git_but_check` / `git_jj_check`: GitButler and Jujutsu awareness.
 
@@ -106,4 +107,10 @@ git_docs  action  query
 ```text
 git_but_check  [response_format]
 git_jj_check   repo_path  [response_format]
+```
+
+### History Rewrite tool
+
+```text
+git_rewrite  repo_path  action=reword|squash|rewrite-messages|backup|restore  [ref] [message] [count] [range] [messages] [name] [confirm]
 ```
