@@ -225,6 +225,14 @@ describe('runBisectAction', () => {
     );
   });
 
+  it('throws when command_args includes shell metacharacters', async () => {
+    const git = makeGit();
+    vi.mocked(getGit).mockReturnValue(git as any);
+    await expect(
+      runBisectAction('/repo', { action: 'run', commandArgs: ['make', '$(touch /tmp/pwned)'] }),
+    ).rejects.toThrow('shell metacharacters');
+  });
+
   it('runs bisect with command_args', async () => {
     const git = makeGit({ raw: vi.fn().mockResolvedValue('') });
     vi.mocked(getGit).mockReturnValue(git as any);

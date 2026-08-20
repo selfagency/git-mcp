@@ -1,5 +1,6 @@
 import { ALLOW_NO_VERIFY, AUTO_SIGN_COMMITS, DEFAULT_SIGNING_KEY } from '../config.js';
 import { getGit, validatePathArguments } from '../git/client.js';
+import { assertSafeRef } from '../security/args.js';
 
 export interface GitAddOptions {
   readonly all?: boolean;
@@ -125,7 +126,7 @@ export async function resetChanges(repoPath: string, options: GitResetOptions): 
     const safePaths = validatePathArguments(repoPath, options.paths);
     const args = ['reset'];
     if (options.target) {
-      args.push(options.target);
+      args.push(assertSafeRef(options.target, 'target'));
     }
     args.push('--', ...safePaths);
     await git.raw(args);
@@ -134,7 +135,7 @@ export async function resetChanges(repoPath: string, options: GitResetOptions): 
 
   const args = ['reset', `--${options.mode}`];
   if (options.target) {
-    args.push(options.target);
+    args.push(assertSafeRef(options.target, 'target'));
   }
 
   await git.raw(args);
@@ -153,7 +154,7 @@ export async function revertCommit(repoPath: string, options: GitRevertOptions):
     args.push('-m', String(options.mainline));
   }
 
-  args.push(options.ref);
+  args.push(assertSafeRef(options.ref, 'ref'));
 
   await git.raw(args);
   return `Reverted ${options.ref}.`;

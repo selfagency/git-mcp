@@ -1,4 +1,5 @@
 import { getGit } from '../git/client.js';
+import { assertSafeArg, assertSafeRef } from '../security/args.js';
 import type { BranchInfo } from '../types.js';
 
 export interface CreateBranchOptions {
@@ -29,52 +30,60 @@ export async function listBranches(repoPath: string, all: boolean): Promise<Bran
 
 export async function createBranch(repoPath: string, options: CreateBranchOptions): Promise<string> {
   const git = getGit(repoPath);
+  const name = assertSafeArg(options.name, 'branch name');
+  const fromRef = options.fromRef ? assertSafeRef(options.fromRef, 'from_ref') : undefined;
 
-  if (options.fromRef) {
+  if (fromRef) {
     if (options.checkout) {
-      await git.checkoutBranch(options.name, options.fromRef);
+      await git.checkoutBranch(name, fromRef);
     } else {
-      await git.raw(['branch', options.name, options.fromRef]);
+      await git.raw(['branch', name, fromRef]);
     }
     return options.checkout
-      ? `Created and checked out ${options.name} from ${options.fromRef}.`
-      : `Created branch ${options.name} from ${options.fromRef}.`;
+      ? `Created and checked out ${name} from ${fromRef}.`
+      : `Created branch ${name} from ${fromRef}.`;
   }
 
-  await git.branch([options.name]);
+  await git.branch([name]);
   if (options.checkout) {
-    await git.checkout(options.name);
+    await git.checkout(name);
   }
 
-  return options.checkout ? `Created and checked out ${options.name}.` : `Created branch ${options.name}.`;
+  return options.checkout ? `Created and checked out ${name}.` : `Created branch ${name}.`;
 }
 
 export async function deleteBranch(repoPath: string, options: DeleteBranchOptions): Promise<string> {
   const git = getGit(repoPath);
-  await git.deleteLocalBranch(options.name, options.force);
-  return `Deleted branch ${options.name}.`;
+  const name = assertSafeArg(options.name, 'branch name');
+  await git.deleteLocalBranch(name, options.force);
+  return `Deleted branch ${name}.`;
 }
 
 export async function renameBranch(repoPath: string, oldName: string, newName: string): Promise<string> {
   const git = getGit(repoPath);
-  await git.branch(['-m', oldName, newName]);
-  return `Renamed branch ${oldName} to ${newName}.`;
+  const oldSafe = assertSafeArg(oldName, 'old branch name');
+  const newSafe = assertSafeArg(newName, 'new branch name');
+  await git.branch(['-m', oldSafe, newSafe]);
+  return `Renamed branch ${oldSafe} to ${newSafe}.`;
 }
 
 export async function checkoutRef(repoPath: string, ref: string, create: boolean): Promise<string> {
   const git = getGit(repoPath);
+  const safeRef = assertSafeRef(ref, 'ref');
 
   if (create) {
-    await git.checkoutLocalBranch(ref);
-    return `Created and checked out ${ref}.`;
+    await git.checkoutLocalBranch(safeRef);
+    return `Created and checked out ${safeRef}.`;
   }
 
-  await git.checkout(ref);
-  return `Checked out ${ref}.`;
+  await git.checkout(safeRef);
+  return `Checked out ${safeRef}.`;
 }
 
 export async function setUpstream(repoPath: string, branch: string, upstream: string): Promise<string> {
   const git = getGit(repoPath);
-  await git.raw(['branch', '--set-upstream-to', upstream, branch]);
-  return `Set upstream of ${branch} to ${upstream}.`;
+  const branchSafe = assertSafeArg(branch, 'branch');
+  const upstreamSafe = assertSafeRef(upstream, 'upstream');
+  await git.raw(['branch', '--set-upstream-to', upstreamSafe, branchSafe]);
+  return `Set upstream of ${branchSafe} to ${upstreamSafe}.`;
 }

@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { resolveRepoPath } from '../config.js';
-import { toGitError } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import {
   runBisectAction,
@@ -13,14 +12,14 @@ import {
   runWorktreeAction,
 } from '../services/advanced.service.js';
 import { renderContent } from './render.js';
+import { buildToolError } from '../utils/error-response.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
   return renderContent(content, format);
 }
 
-function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
-  const gitError = toGitError(error);
-  return { content: [{ type: 'text', text: `Error (${gitError.kind}): ${gitError.message}` }] };
+function buildError(error: unknown): ReturnType<typeof buildToolError> {
+  return buildToolError(error);
 }
 
 export function registerAdvancedTools(server: McpServer): void {

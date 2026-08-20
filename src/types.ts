@@ -261,4 +261,8 @@ export interface WorkflowState {
   readonly steps: readonly WorkflowStepResult[];
   readonly pauseReason?: string;
   readonly params: Readonly<Record<string, unknown>>;
+  /** Schema version for forward/backward compatibility. */
+  readonly version: number;
+  /** Repository identity (remote URL + HEAD SHA) to prevent cross-repo state leakage. */
+  readonly repoIdentity: string;
 }

@@ -14,10 +14,15 @@ import {
 import { SERVER_NAME, SERVER_VERSION } from './constants.js';
 import { registerGitResources } from './resources/git.resources.js';
 import { registerDocsTools } from './tools/docs.tools.js';
+import { registerAnalyticsTools } from './tools/analytics.tools.js';
+import { registerExternalVcsTools } from './tools/external.tools.js';
+import { registerPrTools } from './tools/pr.tools.js';
 import { registerFlowTools } from './tools/flow.tools.js';
 import { registerGroupedTools } from './tools/grouped.tools.js';
 import { registerLfsTools } from './tools/lfs.tools.js';
+import { registerRewriteTools } from './tools/rewrite.tools.js';
 import { registerWorkflowTools } from './tools/workflow.tools.js';
+import { registerWorkspaceTools } from './tools/workspace.tools.js';
 
 const server = new McpServer({
   name: SERVER_NAME,
@@ -25,9 +30,14 @@ const server = new McpServer({
 });
 
 registerGroupedTools(server);
+registerExternalVcsTools(server);
+registerAnalyticsTools(server);
+registerPrTools(server);
 registerLfsTools(server);
+registerRewriteTools(server);
 registerFlowTools(server);
 registerWorkflowTools(server);
+registerWorkspaceTools(server);
 registerDocsTools(server);
 registerGitResources(server);
 
@@ -66,7 +76,7 @@ async function main(): Promise<void> {
   if (ALLOW_FLOW_HOOKS) console.error('[git-mcp] git_flow hooks/filters enabled (GIT_ALLOW_FLOW_HOOKS=true)');
   if (AUTO_SIGN_COMMITS) console.error('[git-mcp] auto-signing commits (GIT_AUTO_SIGN_COMMITS=true)');
   if (AUTO_SIGN_TAGS) console.error('[git-mcp] auto-signing tags (GIT_AUTO_SIGN_TAGS=true)');
-  if (DEFAULT_SIGNING_KEY) console.error(`[git-mcp] signing key: ${DEFAULT_SIGNING_KEY}`);
+  if (DEFAULT_SIGNING_KEY) console.error('[git-mcp] signing key configured');
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

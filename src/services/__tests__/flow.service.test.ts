@@ -430,3 +430,110 @@ describe('runFlowAction init and dynamic topic actions', () => {
     );
   });
 });
+
+describe('runFlowAction hotfix back-merge', () => {
+  it('back-merges a hotfix into an existing release branch instead of develop', async () => {
+    const raw = vi.fn().mockImplementation(async (args: string[]) => {
+      if (args[0] === 'config' && args[1] === '--get-regexp') {
+        if (args[2] === String.raw`^gitflow\.`) {
+          return joinLines([
+            'gitflow.version 1.0',
+            'gitflow.initialized true',
+            'gitflow.branch.main.type base',
+            'gitflow.branch.develop.type base',
+            'gitflow.branch.develop.parent main',
+            'gitflow.branch.feature.type topic',
+            'gitflow.branch.feature.parent develop',
+            'gitflow.branch.feature.prefix feature/',
+            'gitflow.branch.release.type topic',
+            'gitflow.branch.release.parent main',
+            'gitflow.branch.release.prefix release/',
+            'gitflow.branch.hotfix.type topic',
+            'gitflow.branch.hotfix.parent main',
+            'gitflow.branch.hotfix.prefix hotfix/',
+          ]);
+        }
+
+        return '';
+      }
+
+      return '';
+    });
+    const git = makeGit({
+      raw,
+      branch: vi.fn().mockResolvedValue({
+        all: ['main', 'develop', 'release/1.2', 'hotfix/1.2.1'],
+        current: 'hotfix/1.2.1',
+        branches: {},
+      }),
+      status: vi.fn().mockResolvedValue({ current: 'hotfix/1.2.1' }),
+    });
+
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    const result = await runFlowAction('/repo', {
+      action: 'topic-finish',
+      topic: 'hotfix',
+      name: '1.2.1',
+    });
+
+    // The hotfix must back-merge into the existing release branch, not develop.
+    expect(result.markdown).toContain('release/1.2');
+    expect(result.data).toMatchObject({
+      completed: true,
+      mergedInto: ['main', 'release/1.2'],
+    });
+  });
+
+  it('back-merges a hotfix into develop when no release branch exists', async () => {
+    const raw = vi.fn().mockImplementation(async (args: string[]) => {
+      if (args[0] === 'config' && args[1] === '--get-regexp') {
+        if (args[2] === String.raw`^gitflow\.`) {
+          return joinLines([
+            'gitflow.version 1.0',
+            'gitflow.initialized true',
+            'gitflow.branch.main.type base',
+            'gitflow.branch.develop.type base',
+            'gitflow.branch.develop.parent main',
+            'gitflow.branch.feature.type topic',
+            'gitflow.branch.feature.parent develop',
+            'gitflow.branch.feature.prefix feature/',
+            'gitflow.branch.release.type topic',
+            'gitflow.branch.release.parent main',
+            'gitflow.branch.release.prefix release/',
+            'gitflow.branch.hotfix.type topic',
+            'gitflow.branch.hotfix.parent main',
+            'gitflow.branch.hotfix.prefix hotfix/',
+          ]);
+        }
+
+        return '';
+      }
+
+      return '';
+    });
+    const git = makeGit({
+      raw,
+      branch: vi.fn().mockResolvedValue({
+        all: ['main', 'develop', 'hotfix/1.2.1'],
+        current: 'hotfix/1.2.1',
+        branches: {},
+      }),
+      status: vi.fn().mockResolvedValue({ current: 'hotfix/1.2.1' }),
+    });
+
+    vi.mocked(getGit).mockReturnValue(git as never);
+
+    const result = await runFlowAction('/repo', {
+      action: 'topic-finish',
+      topic: 'hotfix',
+      name: '1.2.1',
+    });
+
+    expect(result.markdown).toContain('develop');
+    expect(result.data).toMatchObject({
+      completed: true,
+      mergedInto: ['main', 'develop'],
+    });
+  });
+});

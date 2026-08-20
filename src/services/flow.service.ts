@@ -1623,7 +1623,11 @@ async function maybeFetchRemote(git: GitClient, remote: string | undefined, enab
   }
 }
 
-function getBackmergeBranches(state: FlowConfigState, topic: FlowTopicDefinition): readonly string[] {
+async function getBackmergeBranches(
+  git: GitClient,
+  state: FlowConfigState,
+  topic: FlowTopicDefinition,
+): Promise<readonly string[]> {
   const mainBase = state.bases.find(branch => branch.name === topic.parent);
   const developBase = state.bases.find(
     branch => branch.name !== topic.parent && branch.name.toLowerCase().includes('develop'),
@@ -1634,6 +1638,14 @@ function getBackmergeBranches(state: FlowConfigState, topic: FlowTopicDefinition
   }
 
   if (topic.name === 'hotfix' && mainBase && developBase) {
+    // nvie's model: when a release branch exists, a hotfix must back-merge into
+    // that release branch (so the fix lands in the upcoming release), not develop.
+    const releaseTopic = state.topics.find(branch => branch.name === 'release');
+    const releasePrefix = releaseTopic?.prefix ?? 'release/';
+    const releaseBranch = await getExistingReleaseBranch(git, releasePrefix);
+    if (releaseBranch) {
+      return [releaseBranch];
+    }
     return [developBase.name];
   }
 
@@ -1642,6 +1654,14 @@ function getBackmergeBranches(state: FlowConfigState, topic: FlowTopicDefinition
   }
 
   return [];
+}
+
+async function getExistingReleaseBranch(git: GitClient, prefix: string): Promise<string | undefined> {
+  const summary = await git.branch(['-a']);
+  const releaseBranches = summary.all
+    .map(branch => branch.replace(/^remotes\/[^/]+\//, '').trim())
+    .filter(branch => branch.startsWith(prefix));
+  return releaseBranches[0];
 }
 
 async function startTopic(
@@ -2294,7 +2314,7 @@ async function prepareFinishState(
 
   const strategy = options.strategy ?? topic.command.finishStrategy;
   const keepBranch = options.keepBranch ?? topic.command.keepBranch;
-  const backmergeBranches = options.noBackmerge ? [] : getBackmergeBranches(state, topic);
+  const backmergeBranches = options.noBackmerge ? [] : await getBackmergeBranches(git, state, topic);
   let tagName =
     options.tag === false
       ? undefined

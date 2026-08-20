@@ -84,9 +84,9 @@ Do not bypass hooks casually.
 
 ### 6. Use adjacent tooling only where git-mcp stops
 
-`git-mcp` covers repository operations, not every GitHub action.
+`git-mcp` covers repository operations and forge PR/MR lifecycle.
 
-- Use GitHub tooling for pull requests, review threads, approvals, and GitHub Releases
+- Use `git_pr` for pull requests / merge requests on GitHub, GitLab, Forgejo, Gitea, and Bitbucket (provider CLI or REST API)
 - Use workspace file tools for checking `.gitignore`, worktree directories, and project files
 - **Never invoke `git` via the shell when a `git-mcp` tool exists for that operation.** The quoting hazards described above are not theoretical — they will corrupt commit messages, truncate arguments, and produce silent failures.
 
@@ -97,6 +97,15 @@ Narrow cases where CLI may still be necessary (confirm no MCP tool covers it fir
 - `git filter-repo`-style deep history surgery
 - repo-local hook installation commands
 
+### 7. External VCS awareness
+
+Before Git operations, consider whether the repo is managed by GitButler or Jujutsu:
+
+- `git_but_check` — if `but` is available, prefer `but mcp`/`but` commands; run `but teardown` before using git-mcp tools on a GitButler-managed repo
+- `git_jj_check` — if the repo is jj-managed (`.jj/`), prefer the `jj` CLI for all VCS operations
+- `git_tangled_check` — if the repo is hosted on Tangled, git transport works normally via git-mcp; pull requests are managed via the Tangled web UI (no documented PR API/CLI)
+- `git_entire_check` — if the repo is Entire-managed (`.entire/`), use the `entire` CLI for session/checkpoint/attribution queries
+
 ## Common tool families
 
 - `git_context`, `git_status`, `git_history` for inspection
@@ -104,6 +113,11 @@ Narrow cases where CLI may still be necessary (confirm no MCP tool covers it fir
 - `git_workspace` for stash, rebase, cherry-pick, merge, bisect, tag, worktree, and submodule flows
 - `git_flow` for git-flow-next-style lifecycle operations
 - `git_lfs` for large-file workflows
+- `git_rewrite` for history rewriting (reword, squash, rewrite-messages, backup/restore)
+- `git_analytics` for repository insights (contributors, churn, activity, summary, file-stats)
+- `git_pr` for pull requests / merge requests on GitHub, GitLab, Forgejo, Gitea, Bitbucket
+- `git_but_check` / `git_jj_check` for external VCS awareness
+- `git_tangled_check` / `git_entire_check` for Tangled/Entire awareness
 - `git_docs` when the user needs authoritative Git usage help
 
 See `references/tooling-map.md` for the full tool and action catalog.
@@ -132,6 +146,9 @@ See `references/tooling-map.md` for the full tool and action catalog.
 - `git_workspace action=submodule` — embedded repositories
 - `git_lfs` — large binary assets
 - `git_flow` — scheduled release workflows, preset init, flow overview/config inspection, config CRUD, and finish recovery
+- `git_rewrite` — reword, squash, rewrite-messages, and backup/restore for history rewriting
+- `git_analytics` — contributors, churn, activity, summary, and file-stats
+- `git_pr` — create/list/merge pull requests on the detected forge
 
 ## Validation checklist
 

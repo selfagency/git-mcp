@@ -1,5 +1,6 @@
 import { AUTO_SIGN_TAGS, DEFAULT_SIGNING_KEY } from '../config.js';
 import { getGit, validatePathArgument } from '../git/client.js';
+import { assertSafeRef } from '../security/args.js';
 
 export interface StashActionOptions {
   readonly action: 'save' | 'list' | 'apply' | 'pop' | 'drop';
@@ -110,8 +111,9 @@ export async function runRebaseAction(repoPath: string, options: RebaseActionOpt
     throw new Error('onto is required for rebase start.');
   }
 
-  const output = await git.raw(['rebase', options.onto]);
-  return output.trim() || `Rebase started onto ${options.onto}.`;
+  const onto = assertSafeRef(options.onto, 'onto');
+  const output = await git.raw(['rebase', onto]);
+  return output.trim() || `Rebase started onto ${onto}.`;
 }
 
 export async function runCherryPickAction(repoPath: string, options: CherryPickActionOptions): Promise<string> {
@@ -131,22 +133,29 @@ export async function runCherryPickAction(repoPath: string, options: CherryPickA
     throw new Error('ref is required when cherry-pick action is start.');
   }
 
-  const output = await git.raw(['cherry-pick', options.ref]);
-  return output.trim() || `Cherry-picked ${options.ref}.`;
+  const ref = assertSafeRef(options.ref, 'ref');
+  const output = await git.raw(['cherry-pick', ref]);
+  return output.trim() || `Cherry-picked ${ref}.`;
 }
 
 function resolveBisectRunArgs(options: BisectActionOptions): readonly string[] {
-  if (options.command && SHELL_META_PATTERN.test(options.command)) {
-    throw new Error('command contains shell metacharacters. Use command_args for bisect run.');
-  }
-
-  if (options.command && /\s/.test(options.command)) {
-    throw new Error('command must be a single executable token. Use command_args to pass arguments.');
-  }
-
+  // `git bisect run` executes the command through a shell, so every argument
+  // must be free of shell metacharacters — not just the first token.
   const commandArgs = options.commandArgs ?? (options.command ? [options.command] : undefined);
   if (!commandArgs || commandArgs.length === 0) {
     throw new Error('command_args (or command) is required for bisect run.');
+  }
+
+  for (const arg of commandArgs) {
+    if (SHELL_META_PATTERN.test(arg)) {
+      throw new Error(`bisect run argument contains shell metacharacters: ${arg}`);
+    }
+  }
+
+  // A single `command` token must not contain whitespace — it would be split
+  // by the shell. Use command_args for multi-token commands.
+  if (options.command && /\s/.test(options.command)) {
+    throw new Error('command must be a single executable token. Use command_args to pass arguments.');
   }
 
   return commandArgs;

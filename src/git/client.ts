@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { simpleGit, type SimpleGit } from 'simple-git';
 import type { GitError, GitErrorKind } from '../types.js';
@@ -74,6 +74,18 @@ export function validatePathArgument(repoPath: string, candidatePath: string): s
 
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     throw new Error(`Path argument escapes repository root: ${candidatePath}`);
+  }
+
+  // Symlink-aware containment: resolve the final target and verify it stays
+  // inside the repository root. A symlink like repo/link -> /etc/passwd must
+  // be rejected even though its lexical path is inside the repo.
+  if (existsSync(resolved)) {
+    const realRoot = realpathSync(repoRoot);
+    const realTarget = realpathSync(resolved);
+    const realRelative = path.relative(realRoot, realTarget);
+    if (realRelative === '..' || realRelative.startsWith(`..${path.sep}`) || path.isAbsolute(realRelative)) {
+      throw new Error(`Path argument escapes repository root via symlink: ${candidatePath}`);
+    }
   }
 
   return normalized;

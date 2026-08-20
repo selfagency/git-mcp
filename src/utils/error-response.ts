@@ -1,4 +1,5 @@
 import type { GitError } from '../types.js';
+import { redactError } from '../security/redact.js';
 
 export type ErrorSeverity = 'critical' | 'high' | 'medium' | 'low';
 export type ErrorCategory = 'validation' | 'git_error' | 'security' | 'io_error' | 'internal';
@@ -84,7 +85,40 @@ export function buildSecurityErrorResponse(message: string, threat?: string): St
   };
 }
 
-function determineSeverity(kind: string | null): ErrorSeverity {
+export interface ToolErrorResult {
+  content: Array<{ type: 'text'; text: string }>;
+  isError: true;
+  structuredContent: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/**
+ * Builds an MCP CallToolResult for an error with `isError: true` so clients
+ * can distinguish failures from successes. Applies secret redaction.
+ */
+export function buildToolError(error: unknown, context?: string): ToolErrorResult {
+  const message = redactError(error);
+  const prefixed = context ? `${context}: ${message}` : message;
+  const gitError =
+    error && typeof error === 'object' && 'kind' in error ? (error as GitError) : { kind: 'unknown' as const, message };
+
+  return {
+    content: [{ type: 'text', text: `Error (${gitError.kind}): ${prefixed}` }],
+    isError: true,
+    structuredContent: {
+      success: false,
+      error: {
+        message: prefixed,
+        kind: gitError.kind,
+        severity: determineSeverity(gitError.kind),
+        category: 'git_error',
+        code: gitError.kind ?? undefined,
+      },
+    },
+  };
+}
+
+export function determineSeverity(kind: string | null): ErrorSeverity {
   if (!kind) return 'medium';
   if (['security_error', 'permission', 'path_traversal'].includes(kind)) return 'critical';
   if (['missing_git', 'git_conflict', 'validation_error', 'not_found'].includes(kind)) return 'high';

@@ -1,4 +1,5 @@
 import { CHARACTER_LIMIT } from '../constants.js';
+import { assertSafeCommandName } from '../security/args.js';
 
 export interface GitDocsSearchResult {
   title: string;
@@ -115,6 +116,9 @@ export async function fetchGitManPage(command: string): Promise<string> {
     .trim()
     .toLowerCase()
     .replace(/^git[- ]/, '');
+
+  // Validate the command name to prevent URL path traversal.
+  assertSafeCommandName(normalized);
 
   const url = `https://git-scm.com/docs/git-${normalized}`;
 

@@ -1958,32 +1958,6 @@ describe('git_workspace submodule action', () => {
     expect(result.content[0].type).toBe('text');
   });
 
-  it('runs foreach command on submodules', async () => {
-    mockGit.raw.mockResolvedValue('Entering libs/core\nfoo');
-
-    const result = await callTool(server, 'git_workspace', {
-      repo_path: '/repo',
-      action: 'submodule',
-      submodule_action: 'foreach',
-      command: 'git status',
-      recursive: true,
-    });
-    const [rawArgs] = mockGit.raw.mock.calls[0];
-    expect(rawArgs).toContain('foreach');
-    expect(rawArgs).toContain('--recursive');
-    expect(rawArgs).toContain('git status');
-    expect(result.content[0].type).toBe('text');
-  });
-
-  it('returns error for foreach without command', async () => {
-    const result = await callTool(server, 'git_workspace', {
-      repo_path: '/repo',
-      action: 'submodule',
-      submodule_action: 'foreach',
-    });
-    expect(result.content[0].text).toMatch(/Error/);
-  });
-
   it('sets submodule branch', async () => {
     mockGit.raw.mockResolvedValue('');
 

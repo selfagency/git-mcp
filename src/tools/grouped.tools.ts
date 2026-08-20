@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { ALLOW_FORCE_PUSH, ALLOW_NO_VERIFY, resolveRepoPath } from '../config.js';
-import { getGit, toGitError, validatePathArguments } from '../git/client.js';
+import { getGit, validatePathArguments } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { runBisectAction, runStashAction, runTagAction } from '../services/advanced.service.js';
 import {
@@ -25,11 +25,11 @@ import {
 import { fetchRemote, listRemotes, manageRemote, pullRemote, pushRemote } from '../services/remote.service.js';
 import { addFiles, commitChanges, resetChanges, restoreFiles, revertCommit } from '../services/write.service.js';
 import type { CommitInfo } from '../types.js';
+import { buildToolError } from '../utils/error-response.js';
 import { renderContent } from './render.js';
 
-function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
-  const gitError = toGitError(error);
-  return { content: [{ type: 'text', text: `Error (${gitError.kind}): ${gitError.message}` }] };
+function buildError(error: unknown): ReturnType<typeof buildToolError> {
+  return buildToolError(error);
 }
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
@@ -66,6 +66,12 @@ function registerGitStatusTool(server: McpServer): void {
         base_branch: z.string().default('main'),
         response_format: ResponseFormatSchema,
       },
+      outputSchema: z.object({
+        status: z.unknown().optional(),
+        summary: z.unknown().optional(),
+        output: z.unknown().optional(),
+        base_branch: z.string().optional(),
+      }),
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -167,6 +173,13 @@ function registerGitHistoryTool(server: McpServer): void {
         ref: z.string().optional(),
         response_format: ResponseFormatSchema,
       },
+      outputSchema: z.object({
+        commits: z.array(z.unknown()).optional(),
+        output: z.unknown().optional(),
+        blame: z.unknown().optional(),
+        reflog: z.unknown().optional(),
+        contributors: z.unknown().optional(),
+      }),
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
@@ -360,7 +373,7 @@ function registerGitCommitsTool(server: McpServer): void {
         message: z.string().optional(),
         amend: z.boolean().default(false),
         no_edit: z.boolean().default(false),
-        sign: z.boolean().default(false),
+        sign: z.boolean().optional().describe('Sign the commit. Defaults to the server GIT_AUTO_SIGN_COMMITS setting.'),
         signing_key: z.string().optional(),
         no_verify: z.boolean().default(false),
         mode: z.enum(['soft', 'mixed', 'hard']).default('mixed'),
@@ -410,7 +423,7 @@ function registerGitCommitsTool(server: McpServer): void {
       message?: string;
       amend: boolean;
       no_edit: boolean;
-      sign: boolean;
+      sign?: boolean;
       signing_key?: string;
       no_verify: boolean;
       mode: 'soft' | 'mixed' | 'hard';
@@ -588,6 +601,10 @@ function registerGitBranchesTool(server: McpServer): void {
         count: z.number().int().min(1).max(100).default(10),
         response_format: ResponseFormatSchema,
       },
+      outputSchema: z.object({
+        branches: z.array(z.unknown()).optional(),
+        output: z.unknown().optional(),
+      }),
       annotations: {
         readOnlyHint: false,
         idempotentHint: false,
@@ -1028,7 +1045,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
         bisect_action: z.enum(['start', 'good', 'bad', 'skip', 'run', 'reset']).optional(),
         tag_action: z.enum(['list', 'create', 'delete']).optional(),
         worktree_action: z.enum(['add', 'list', 'remove', 'lock', 'unlock', 'prune', 'repair']).optional(),
-        submodule_action: z.enum(['add', 'list', 'update', 'sync', 'foreach', 'set_branch']).optional(),
+        submodule_action: z.enum(['add', 'list', 'update', 'sync', 'set_branch']).optional(),
         ref: z.string().optional(),
         onto: z.string().optional(),
         good_ref: z.string().optional(),
@@ -1037,7 +1054,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
         command_args: z.array(z.string()).optional(),
         name: z.string().optional(),
         target: z.string().optional(),
-        sign: z.boolean().default(false),
+        sign: z.boolean().optional().describe('Sign the tag. Defaults to the server GIT_AUTO_SIGN_TAGS setting.'),
         signing_key: z.string().optional(),
         path: z.string().optional(),
         paths: z.array(z.string()).optional(),
@@ -1152,7 +1169,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
       bisect_action?: 'start' | 'good' | 'bad' | 'skip' | 'run' | 'reset';
       tag_action?: 'list' | 'create' | 'delete';
       worktree_action?: 'add' | 'list' | 'remove' | 'lock' | 'unlock' | 'prune' | 'repair';
-      submodule_action?: 'add' | 'list' | 'update' | 'sync' | 'foreach' | 'set_branch';
+      submodule_action?: 'add' | 'list' | 'update' | 'sync' | 'set_branch';
       ref?: string;
       onto?: string;
       good_ref?: string;
@@ -1161,7 +1178,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
       command_args?: string[];
       name?: string;
       target?: string;
-      sign: boolean;
+      sign?: boolean;
       signing_key?: string;
       path?: string;
       paths?: string[];
@@ -1519,23 +1536,6 @@ function registerGitWorkspaceTool(server: McpServer): void {
           };
         }
 
-        if (submoduleOp === 'foreach') {
-          if (!command) {
-            throw new Error('command is required for submodule foreach.');
-          }
-          const args = ['submodule', 'foreach'];
-          if (recursive) {
-            args.push('--recursive');
-          }
-          args.push(command);
-          const rawOutput = await git.raw(args);
-          const output = rawOutput.trim() || 'Submodule foreach completed.';
-          return {
-            content: [{ type: 'text', text: render(output, response_format) }],
-            structuredContent: { output },
-          };
-        }
-
         if (submoduleOp === 'set_branch') {
           if (!branch || !path) {
             throw new Error('branch and path are required for submodule set_branch.');
@@ -1587,7 +1587,7 @@ function registerGitContextTool(server: McpServer): void {
       annotations: {
         readOnlyHint: false,
         idempotentHint: true,
-        destructiveHint: false,
+        destructiveHint: true,
         openWorldHint: false,
       },
     },
