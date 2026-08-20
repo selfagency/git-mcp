@@ -42,4 +42,4 @@ Detects Jujutsu availability and management status.
 
 ## Related
 
-- [Jujutsu skill](/skills/jj-workflow) — git→jj mapping and workflow guidance.
+- Bundled skill: `skills/jj-workflow/SKILL.md` in the repository — git→jj mapping and workflow guidance.

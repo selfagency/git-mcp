@@ -6,7 +6,7 @@ This reference translates common Git intentions into the correct `git-mcp` tool 
 
 ## Canonical Tool Surface
 
-The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `git_ping`, `git_rewrite`, `git_analytics`, `git_pr`, `git_but_check`, and `git_jj_check`. These are the only tools available. Use them exclusively.
+The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `git_ping`, `git_rewrite`, `git_analytics`, `git_pr`, `git_but_check`, `git_jj_check`, `git_tangled_check`, and `git_entire_check`. These are the only tools available. Use them exclusively.
 
 ---
 
@@ -338,6 +338,13 @@ The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `
 
 - `git_but_check`: detect GitButler `but` CLI. When present, prefer `but mcp`/`but`; run `but teardown` before git-mcp tools on a GitButler-managed repo.
 - `git_jj_check`: detect Jujutsu `jj` CLI and `.jj/` management. Prefer `jj` CLI for jj-managed repos.
+
+---
+
+## `git_tangled_check` / `git_entire_check` — Tangled / Entire awareness
+
+- `git_tangled_check`: detect a Tangled host remote (tangled.org or self-hosted knot). Git transport works normally via git-mcp; pull requests are managed via the Tangled web UI (no documented PR API/CLI).
+- `git_entire_check`: detect the Entire CLI and `.entire/` management. Use the `entire` CLI for session/checkpoint/attribution queries.
 
 ---
 
