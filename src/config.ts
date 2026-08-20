@@ -1,6 +1,15 @@
 import path from 'node:path';
 
 /**
+ * Parses a boolean env value, accepting true/1/yes (case-insensitive).
+ * Anything else (including unset) is false.
+ */
+function envBool(value: string | undefined): boolean {
+  if (!value) return false;
+  return ['true', '1', 'yes'].includes(value.toLowerCase());
+}
+
+/**
  * Parses --repo or --repo-path from process.argv.
  * Supports both `--repo-path /path` and `--repo-path=/path` forms.
  */
@@ -66,7 +75,7 @@ export function resolveRepoPath(repoPath: string | undefined): string {
  * git commit and git push, bypassing pre-commit / pre-push hooks.
  * Enable via: GIT_ALLOW_NO_VERIFY=true
  */
-export const ALLOW_NO_VERIFY: boolean = process.env['GIT_ALLOW_NO_VERIFY'] === 'true';
+export const ALLOW_NO_VERIFY: boolean = envBool(process.env['GIT_ALLOW_NO_VERIFY']);
 
 // ---------------------------------------------------------------------------
 // Force push
@@ -78,7 +87,7 @@ export const ALLOW_NO_VERIFY: boolean = process.env['GIT_ALLOW_NO_VERIFY'] === '
  * (e.g. GitHub/GitLab protected branches) is enforced server-side regardless.
  * Enable via: GIT_ALLOW_FORCE_PUSH=true
  */
-export const ALLOW_FORCE_PUSH: boolean = process.env['GIT_ALLOW_FORCE_PUSH'] === 'true';
+export const ALLOW_FORCE_PUSH: boolean = envBool(process.env['GIT_ALLOW_FORCE_PUSH']);
 
 // ---------------------------------------------------------------------------
 // Flow hook execution
@@ -89,7 +98,7 @@ export const ALLOW_FORCE_PUSH: boolean = process.env['GIT_ALLOW_FORCE_PUSH'] ===
  * programs discovered from git config or repository hook locations.
  * Enable via: GIT_ALLOW_FLOW_HOOKS=true
  */
-export const ALLOW_FLOW_HOOKS: boolean = process.env['GIT_ALLOW_FLOW_HOOKS'] === 'true';
+export const ALLOW_FLOW_HOOKS: boolean = envBool(process.env['GIT_ALLOW_FLOW_HOOKS']);
 
 // ---------------------------------------------------------------------------
 // GitButler / Jujutsu awareness
@@ -101,8 +110,8 @@ export const ALLOW_FLOW_HOOKS: boolean = process.env['GIT_ALLOW_FLOW_HOOKS'] ===
  * prefer the external VCS CLI/MCP over git-mcp's plain-Git tools.
  * Enable via: GIT_ALLOW_BUT=true / GIT_ALLOW_JJ=true
  */
-export const ALLOW_BUT: boolean = process.env['GIT_ALLOW_BUT'] === 'true';
-export const ALLOW_JJ: boolean = process.env['GIT_ALLOW_JJ'] === 'true';
+export const ALLOW_BUT: boolean = envBool(process.env['GIT_ALLOW_BUT']);
+export const ALLOW_JJ: boolean = envBool(process.env['GIT_ALLOW_JJ']);
 
 /**
  * Override the executable path for the `but` and `jj` binaries.
@@ -115,8 +124,8 @@ export const JJ_BINARY: string = process.env['JJ_BINARY'] || 'jj';
  * When true, tools that detect and guide toward Tangled and Entire are enabled.
  * Enable via: GIT_ALLOW_TANGLED=true / GIT_ALLOW_ENTIRE=true
  */
-export const ALLOW_TANGLED: boolean = process.env['GIT_ALLOW_TANGLED'] === 'true';
-export const ALLOW_ENTIRE: boolean = process.env['GIT_ALLOW_ENTIRE'] === 'true';
+export const ALLOW_TANGLED: boolean = envBool(process.env['GIT_ALLOW_TANGLED']);
+export const ALLOW_ENTIRE: boolean = envBool(process.env['GIT_ALLOW_ENTIRE']);
 
 /**
  * Override the executable path for the `entire` binary.
@@ -144,8 +153,13 @@ export const BITBUCKET_TOKEN: string | undefined = process.env['BITBUCKET_TOKEN'
  * Set via: GIT_FORGE_PROVIDER=<provider>
  */
 export type ForgeProviderName = 'github' | 'gitlab' | 'forgejo' | 'gitea' | 'bitbucket';
-export const GIT_FORGE_PROVIDER: ForgeProviderName | undefined =
-  (process.env['GIT_FORGE_PROVIDER'] as ForgeProviderName) || undefined;
+const FORGE_PROVIDERS: readonly ForgeProviderName[] = ['github', 'gitlab', 'forgejo', 'gitea', 'bitbucket'];
+const rawProvider = process.env['GIT_FORGE_PROVIDER'];
+export const GIT_FORGE_PROVIDER: ForgeProviderName | undefined = rawProvider
+  ? FORGE_PROVIDERS.includes(rawProvider as ForgeProviderName)
+    ? (rawProvider as ForgeProviderName)
+    : undefined
+  : undefined;
 
 // ---------------------------------------------------------------------------
 // Commit / tag signing
@@ -167,10 +181,10 @@ export const DEFAULT_SIGNING_FORMAT: string | undefined = process.env['GIT_SIGNI
  * Auto-sign all commits produced by this server.
  * Enable via: GIT_AUTO_SIGN_COMMITS=true
  */
-export const AUTO_SIGN_COMMITS: boolean = process.env['GIT_AUTO_SIGN_COMMITS'] === 'true';
+export const AUTO_SIGN_COMMITS: boolean = envBool(process.env['GIT_AUTO_SIGN_COMMITS']);
 
 /**
  * Auto-sign all tags produced by this server.
  * Enable via: GIT_AUTO_SIGN_TAGS=true
  */
-export const AUTO_SIGN_TAGS: boolean = process.env['GIT_AUTO_SIGN_TAGS'] === 'true';
+export const AUTO_SIGN_TAGS: boolean = envBool(process.env['GIT_AUTO_SIGN_TAGS']);

@@ -177,16 +177,22 @@ export async function getRepoSummary(repoPath: string): Promise<RepoSummary> {
 
 export async function getFileStats(repoPath: string): Promise<FileStats> {
   const git = getGit(repoPath);
-  const files = await git.raw(['ls-files']);
   const byExtension = new Map<string, number>();
   const largest: Array<{ path: string; bytes: number }> = [];
 
-  for (const file of files.split('\n')) {
-    if (!file) continue;
+  // Single subprocess: `git ls-tree -r -l HEAD` returns path + blob size for
+  // every tracked file, avoiding the N+1 cat-file loop.
+  const tree = await git.raw(['ls-tree', '-r', '-l', 'HEAD']);
+  for (const line of tree.split('\n')) {
+    if (!line) continue;
+    // Format: <mode> <type> <sha> <size>\t<path>
+    const tab = line.indexOf('\t');
+    if (tab === -1) continue;
+    const meta = line.slice(0, tab).split(/\s+/);
+    const file = line.slice(tab + 1);
+    const bytes = Number(meta[3]) || 0;
     const ext = file.includes('.') ? file.slice(file.lastIndexOf('.') + 1) : '(none)';
     byExtension.set(ext, (byExtension.get(ext) ?? 0) + 1);
-    const stat = await git.raw(['cat-file', '-s', `HEAD:${file}`]);
-    const bytes = Number(stat.trim()) || 0;
     largest.push({ path: file, bytes });
   }
 

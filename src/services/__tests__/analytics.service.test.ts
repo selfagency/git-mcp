@@ -88,8 +88,13 @@ describe('getFileStats', () => {
   it('returns file type breakdown and largest files', async () => {
     const git = makeGit({
       raw: vi.fn().mockImplementation(async (args: string[]) => {
-        if (args[0] === 'ls-files') return 'src/a.ts\nsrc/b.ts\nREADME.md\n';
-        if (args[0] === 'cat-file') return '100';
+        if (args[0] === 'ls-tree') {
+          return [
+            '100644 blob abc123 100\tsrc/a.ts',
+            '100644 blob def456 200\tsrc/b.ts',
+            '100644 blob 789abc 50\tREADME.md',
+          ].join('\n');
+        }
         if (args[0] === 'log') return 'src/a.ts\nREADME.md\n';
         return '';
       }),
