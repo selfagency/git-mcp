@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { GITHUB_TOKEN, GITLAB_TOKEN, FORGEJO_TOKEN, BITBUCKET_TOKEN } from '../config.js';
+import { redactError } from '../security/redact.js';
 import { detectForge, type ForgeContext } from './forge.service.js';
 
 const execFileAsync = promisify(execFile);
@@ -67,15 +68,17 @@ async function runRest(
     Accept: 'application/json',
   };
 
-  const url = `${context.baseUrl}/api/v1/repos/${context.owner}/${context.repo}${path}`;
+  const url = `${context.baseUrl}/api/v1/repos/${encodeURIComponent(context.owner)}/${encodeURIComponent(context.repo)}${path}`;
   const response = await fetch(url, {
     method,
     headers,
+    signal: AbortSignal.timeout(30_000),
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
   if (!response.ok) {
-    throw new Error(`Forge API error (${response.status}): ${await response.text()}`);
+    const body = await response.text();
+    throw new Error(`Forge API error (${response.status}): ${redactError(body)}`);
   }
 
   return response.json();

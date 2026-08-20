@@ -25,11 +25,11 @@ import {
 import { fetchRemote, listRemotes, manageRemote, pullRemote, pushRemote } from '../services/remote.service.js';
 import { addFiles, commitChanges, resetChanges, restoreFiles, revertCommit } from '../services/write.service.js';
 import type { CommitInfo } from '../types.js';
+import { buildToolError } from '../utils/error-response.js';
 import { renderContent } from './render.js';
 
-function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
-  const gitError = toGitError(error);
-  return { content: [{ type: 'text', text: `Error (${gitError.kind}): ${gitError.message}` }] };
+function buildError(error: unknown): ReturnType<typeof buildToolError> {
+  return buildToolError(error);
 }
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
@@ -360,7 +360,7 @@ function registerGitCommitsTool(server: McpServer): void {
         message: z.string().optional(),
         amend: z.boolean().default(false),
         no_edit: z.boolean().default(false),
-        sign: z.boolean().default(false),
+        sign: z.boolean().optional().describe('Sign the commit. Defaults to the server GIT_AUTO_SIGN_COMMITS setting.'),
         signing_key: z.string().optional(),
         no_verify: z.boolean().default(false),
         mode: z.enum(['soft', 'mixed', 'hard']).default('mixed'),
@@ -410,7 +410,7 @@ function registerGitCommitsTool(server: McpServer): void {
       message?: string;
       amend: boolean;
       no_edit: boolean;
-      sign: boolean;
+      sign?: boolean;
       signing_key?: string;
       no_verify: boolean;
       mode: 'soft' | 'mixed' | 'hard';
@@ -1037,7 +1037,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
         command_args: z.array(z.string()).optional(),
         name: z.string().optional(),
         target: z.string().optional(),
-        sign: z.boolean().default(false),
+        sign: z.boolean().optional().describe('Sign the tag. Defaults to the server GIT_AUTO_SIGN_TAGS setting.'),
         signing_key: z.string().optional(),
         path: z.string().optional(),
         paths: z.array(z.string()).optional(),
@@ -1161,7 +1161,7 @@ function registerGitWorkspaceTool(server: McpServer): void {
       command_args?: string[];
       name?: string;
       target?: string;
-      sign: boolean;
+      sign?: boolean;
       signing_key?: string;
       path?: string;
       paths?: string[];

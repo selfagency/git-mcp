@@ -32,25 +32,34 @@ const PUBLIC_HOST_PROVIDER: Record<string, ForgeProvider> = {
   'bitbucket.org': 'bitbucket',
 };
 
-function parseRemoteUrl(url: string): { host: string; owner: string; repo: string } | null {
-  // SSH: git@github.com:owner/repo.git
-  const sshMatch = /^(?:[^@]+@)?([^:]+):([^/]+)\/([^/]+?)(?:\.git)?$/.exec(url);
-  if (sshMatch) {
-    return { host: sshMatch[1], owner: sshMatch[2], repo: sshMatch[3] };
+function parseRemoteUrl(url: string): { host: string; owner: string; repo: string; baseUrl: string } | null {
+  // HTTPS URLs take precedence — never treat them as SSH.
+  if (!url.includes('://')) {
+    // SSH: git@github.com:owner/repo.git or git@gitlab.com:group/subgroup/repo.git
+    const sshMatch = /^(?:[^@]+@)?([^/:]+):(.+?)(?:\.git)?$/.exec(url);
+    if (sshMatch) {
+      const host = sshMatch[1];
+      const pathParts = sshMatch[2].split('/').filter(Boolean);
+      if (pathParts.length < 2) return null;
+      const repo = pathParts.pop()!;
+      const owner = pathParts.join('/');
+      return { host, owner, repo, baseUrl: `https://${host}` };
+    }
   }
 
-  // HTTPS: https://github.com/owner/repo.git
+  // HTTPS: https://host/group/subgroup/repo.git (nested namespaces supported)
   try {
     const parsed = new URL(url);
     const parts = parsed.pathname.split('/').filter(Boolean);
-    if (parts.length >= 2) {
-      return { host: parsed.hostname, owner: parts[0], repo: parts[1].replace(/\.git$/, '') };
-    }
+    if (parts.length < 2) return null;
+    const repo = parts.pop()!.replace(/\.git$/, '');
+    const owner = parts.join('/');
+    // Preserve protocol, host, port, and any subpath prefix (e.g. /gitlab).
+    const baseUrl = `${parsed.protocol}//${parsed.host}`;
+    return { host: parsed.hostname, owner, repo, baseUrl };
   } catch {
-    // fall through
+    return null;
   }
-
-  throw new Error(`Cannot parse remote URL: ${url}`);
 }
 
 function detectProvider(host: string): ForgeProvider {
@@ -81,7 +90,7 @@ export async function detectForge(repoPath: string): Promise<ForgeContext> {
   if (!parsed) {
     return { provider: 'unknown', owner: '', repo: '', baseUrl: '', cli: undefined };
   }
-  const { host, owner, repo } = parsed;
+  const { host, owner, repo, baseUrl } = parsed;
   const provider = detectProvider(host);
   const cli = provider !== 'unknown' ? CLI_BY_PROVIDER[provider] : undefined;
   const cliPresent = cli ? await cliAvailable(cli) : false;
@@ -90,7 +99,7 @@ export async function detectForge(repoPath: string): Promise<ForgeContext> {
     provider,
     owner,
     repo,
-    baseUrl: `https://${host}`,
+    baseUrl,
     cli: cliPresent ? cli : undefined,
   };
 }

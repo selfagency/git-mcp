@@ -74,7 +74,7 @@ async function main(): Promise<void> {
   if (ALLOW_FLOW_HOOKS) console.error('[git-mcp] git_flow hooks/filters enabled (GIT_ALLOW_FLOW_HOOKS=true)');
   if (AUTO_SIGN_COMMITS) console.error('[git-mcp] auto-signing commits (GIT_AUTO_SIGN_COMMITS=true)');
   if (AUTO_SIGN_TAGS) console.error('[git-mcp] auto-signing tags (GIT_AUTO_SIGN_TAGS=true)');
-  if (DEFAULT_SIGNING_KEY) console.error(`[git-mcp] signing key: ${DEFAULT_SIGNING_KEY}`);
+  if (DEFAULT_SIGNING_KEY) console.error('[git-mcp] signing key configured');
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

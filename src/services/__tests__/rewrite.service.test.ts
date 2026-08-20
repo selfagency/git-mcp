@@ -12,6 +12,8 @@ import { createBackup, restoreBackup, rewordCommit, rewriteMessages, squashCommi
 function makeGit(overrides: Record<string, unknown> = {}) {
   return {
     raw: vi.fn().mockResolvedValue(''),
+    status: vi.fn().mockResolvedValue({ isClean: () => true }),
+    revparse: vi.fn().mockResolvedValue('/repo/.git'),
     ...overrides,
   };
 }
@@ -66,8 +68,9 @@ describe('rewriteMessages', () => {
     const git = makeGit();
     vi.mocked(getGit).mockReturnValue(git as never);
     await rewriteMessages('/repo', { range: 'HEAD~5..HEAD', messages: { abc1234: 'new msg' } });
-    const args = git.raw.mock.calls[0][0] as string[];
-    expect(args[0]).toBe('filter-branch');
+    const filterCall = git.raw.mock.calls.find((c: string[][]) => c[0][0] === 'filter-branch')!;
+    expect(filterCall).toBeDefined();
+    const args = filterCall[0] as string[];
     expect(args).toContain('HEAD~5..HEAD');
     // The filter must NOT embed the message content in the shell string.
     expect(args.join(' ')).not.toContain('new msg');
@@ -92,8 +95,9 @@ describe('rewrite shell-injection regression', () => {
       const git = makeGit();
       vi.mocked(getGit).mockReturnValue(git as never);
       await rewordCommit('/repo', { ref: 'abc1234', message: exploit });
-      const args = git.raw.mock.calls[0][0] as string[];
-      const filter = args[3] as string;
+      const filterCall = git.raw.mock.calls.find((c: string[][]) => c[0][0] === 'filter-branch')!;
+      expect(filterCall).toBeDefined();
+      const filter = filterCall[0][3] as string;
       // The message must never appear in the shell command string.
       expect(filter).not.toContain(exploit);
       // The message must be read from a temp file instead.
@@ -106,8 +110,9 @@ describe('rewrite shell-injection regression', () => {
       const git = makeGit();
       vi.mocked(getGit).mockReturnValue(git as never);
       await rewriteMessages('/repo', { range: 'HEAD~5..HEAD', messages: { abc1234: exploit } });
-      const args = git.raw.mock.calls[0][0] as string[];
-      const filter = args[3] as string;
+      const filterCall = git.raw.mock.calls.find((c: string[][]) => c[0][0] === 'filter-branch')!;
+      expect(filterCall).toBeDefined();
+      const filter = (filterCall[0] as string[])[3] as string;
       expect(filter).not.toContain(exploit);
       expect(filter).toContain('messages.txt');
     }

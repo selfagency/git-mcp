@@ -4,13 +4,14 @@ import { resolveRepoPath } from '../config.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { getActivity, getChurn, getContributors, getFileStats, getRepoSummary } from '../services/analytics.service.js';
 import { renderContent } from './render.js';
+import { buildToolError } from '../utils/error-response.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
   return renderContent(content, format);
 }
 
-function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
-  return { content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }] };
+function buildError(error: unknown): ReturnType<typeof buildToolError> {
+  return buildToolError(error);
 }
 
 export function registerAnalyticsTools(server: McpServer): void {

@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { getGit } from '../git/client.js';
+import { assertCleanWorktree, assertNoInProgressOperation, assertNotDetached } from './preflight.js';
 
 export interface RewordOptions {
   readonly ref?: string;
@@ -52,6 +53,10 @@ export async function rewordCommit(repoPath: string, options: RewordOptions): Pr
     return `Reworded HEAD to: ${options.message}`;
   }
 
+  await assertCleanWorktree(repoPath);
+  await assertNotDetached(repoPath);
+  await assertNoInProgressOperation(repoPath);
+
   const { dir, cleanup } = makeTempDir();
   try {
     const msgFile = path.join(dir, 'message.txt');
@@ -78,6 +83,10 @@ export async function squashCommits(repoPath: string, options: SquashOptions): P
     throw new Error('count must be at least 2 to squash commits.');
   }
 
+  await assertCleanWorktree(repoPath);
+  await assertNotDetached(repoPath);
+  await assertNoInProgressOperation(repoPath);
+
   await git.raw(['reset', '--soft', `HEAD~${options.count}`]);
   await git.raw(['commit', '-m', options.message]);
   return `Squashed last ${options.count} commits into: ${options.message}`;
@@ -96,6 +105,10 @@ export async function rewriteMessages(repoPath: string, options: RewriteMessages
   if (entries.length === 0) {
     throw new Error('messages mapping must not be empty.');
   }
+
+  await assertCleanWorktree(repoPath);
+  await assertNotDetached(repoPath);
+  await assertNoInProgressOperation(repoPath);
 
   const { dir, cleanup } = makeTempDir();
   try {
@@ -131,6 +144,9 @@ export async function createBackup(repoPath: string, options: BackupOptions): Pr
 export async function restoreBackup(repoPath: string, options: RestoreOptions): Promise<string> {
   const git = getGit(repoPath);
   const branchName = `${BACKUP_PREFIX}${options.name}`;
+
+  await assertCleanWorktree(repoPath);
+  await assertNoInProgressOperation(repoPath);
 
   await git.raw(['reset', '--hard', branchName]);
   return `Restored to backup branch ${branchName}.`;

@@ -10,13 +10,14 @@ import {
   squashCommits,
 } from '../services/rewrite.service.js';
 import { renderContent } from './render.js';
+import { buildToolError } from '../utils/error-response.js';
 
 function render(content: unknown, format: 'markdown' | 'json'): string {
   return renderContent(content, format);
 }
 
-function buildError(error: unknown): { content: Array<{ type: 'text'; text: string }> } {
-  return { content: [{ type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}` }] };
+function buildError(error: unknown): ReturnType<typeof buildToolError> {
+  return buildToolError(error);
 }
 
 export function registerRewriteTools(server: McpServer): void {
@@ -106,8 +107,8 @@ export function registerRewriteTools(server: McpServer): void {
           if (!message) {
             throw new Error('message is required for reword.');
           }
-          if (ref && ref !== 'HEAD' && !confirm) {
-            throw new Error('Rewording a non-HEAD commit requires confirm=true.');
+          if (!confirm) {
+            throw new Error('reword requires confirm=true because it rewrites history.');
           }
           const output = await rewordCommit(repoPath, { ref, message });
           return {

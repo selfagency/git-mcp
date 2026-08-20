@@ -73,4 +73,28 @@ describe('detectForge', () => {
     const result = await detectForge('/repo');
     expect(result.provider).toBe('unknown');
   });
+
+  it('handles nested GitLab groups over SSH', async () => {
+    const git = makeGit([{ name: 'origin', refs: { fetch: 'git@gitlab.com:group/subgroup/repo.git' } }]);
+    vi.mocked(getGit).mockReturnValue(git as never);
+    const result = await detectForge('/repo');
+    expect(result.provider).toBe('gitlab');
+    expect(result.owner).toBe('group/subgroup');
+    expect(result.repo).toBe('repo');
+  });
+
+  it('handles nested GitLab groups over HTTPS', async () => {
+    const git = makeGit([{ name: 'origin', refs: { fetch: 'https://gitlab.com/group/subgroup/repo.git' } }]);
+    vi.mocked(getGit).mockReturnValue(git as never);
+    const result = await detectForge('/repo');
+    expect(result.owner).toBe('group/subgroup');
+    expect(result.repo).toBe('repo');
+  });
+
+  it('preserves custom port in baseUrl', async () => {
+    const git = makeGit([{ name: 'origin', refs: { fetch: 'https://gitlab.example.com:8443/group/repo.git' } }]);
+    vi.mocked(getGit).mockReturnValue(git as never);
+    const result = await detectForge('/repo');
+    expect(result.baseUrl).toBe('https://gitlab.example.com:8443');
+  });
 });
