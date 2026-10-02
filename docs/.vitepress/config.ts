@@ -143,6 +143,7 @@ export default defineConfig({
             { text: 'Context & Config', link: '/tools/context' },
             { text: 'LFS', link: '/tools/lfs' },
             { text: 'Git Flow', link: '/tools/flow' },
+            { text: 'Worktree', link: '/tools/worktree' },
             { text: 'Documentation', link: '/tools/docs' },
           ],
         },

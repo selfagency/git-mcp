@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { GITHUB_TOKEN, GITLAB_TOKEN, FORGEJO_TOKEN, BITBUCKET_TOKEN } from '../config.js';
 import { redactError } from '../security/redact.js';
+import { resolveExecutable } from '../platform/exec.js';
 import { detectForge, type ForgeContext } from './forge.service.js';
 
 const execFileAsync = promisify(execFile);
@@ -47,7 +48,9 @@ function getToken(context: ForgeContext): string | undefined {
 }
 
 async function runCli(cli: string, args: string[], cwd: string): Promise<string> {
-  const { stdout } = await execFileAsync(cli, args, { cwd, timeout: 30_000 });
+  // Resolved against PATH/PATHEXT: on Windows `gh`/`glab` are `.cmd` shims,
+  // which execFile refuses to spawn (CVE-2024-27980).
+  const { stdout } = await execFileAsync(resolveExecutable(cli), args, { cwd, timeout: 30_000 });
   return stdout.trim();
 }
 
