@@ -4,6 +4,7 @@ import { resolveRepoPath } from '../config.js';
 import { getGit, validatePathArguments } from '../git/client.js';
 import { RepoPathSchema, ResponseFormatSchema } from '../schemas/index.js';
 import { runBisectAction, runStashAction, runTagAction } from '../services/advanced.service.js';
+import { runGitFlow } from '../services/flow.service.js';
 import { buildToolError } from '../utils/error-response.js';
 import { renderContent } from './render.js';
 
@@ -451,20 +452,78 @@ function registerGitTagTool(server: McpServer): void {
 }
 
 type WorktreeArgs = { args: string[]; fallback: string };
+type WorktreeFlowArgs = { flow: string[]; fallback: string };
 
-function buildWorktreeArgs(
-  action: 'add' | 'list' | 'remove' | 'lock' | 'unlock' | 'prune' | 'repair',
+export type WorktreeAction =
+  | 'add'
+  | 'list'
+  | 'remove'
+  | 'lock'
+  | 'unlock'
+  | 'prune'
+  | 'repair'
+  | 'flow_add'
+  | 'flow_remove'
+  | 'flow_list'
+  | 'flow_path';
+
+/**
+ * Builds argv for either backend. Path-addressed actions return `args` for plain
+ * `git worktree`; `flow_*` actions return `flow` for `git flow worktree`, which
+ * addresses worktrees by branch name and reports provenance.
+ */
+export function buildWorktreeArgs(
+  action: WorktreeAction,
   opts: {
     path?: string;
     branch?: string;
-    force: boolean;
-    detached: boolean;
+    force?: boolean;
+    detached?: boolean;
     lock_reason?: string;
     expire?: string;
     paths?: string[];
+  } = {},
+): WorktreeArgs | WorktreeFlowArgs {
+  if (action.startsWith('flow_')) return buildFlowWorktreeArgs(action, opts);
+  const builder = WORKTREE_BUILDERS[action as keyof typeof WORKTREE_BUILDERS];
+  return builder({ force: false, detached: false, ...opts });
+}
+
+const FLOW_WORKTREE_BUILDERS: Record<
+  'flow_add' | 'flow_list' | 'flow_path' | 'flow_remove',
+  (opts: { branch?: string; path?: string; force?: boolean; lock_reason?: string }) => WorktreeFlowArgs
+> = {
+  flow_path: opts => ({ flow: ['worktree', 'path', requireBranch(opts)], fallback: 'No path computed.' }),
+  flow_add: opts => {
+    if (opts.lock_reason) {
+      throw new Error('lock_reason is not supported: `git flow worktree add` has no lock flags.');
+    }
+    const args = ['worktree', 'add', requireBranch(opts)];
+    if (opts.path) args.push('--path', opts.path);
+    return { flow: args, fallback: 'Worktree created.' };
   },
-): WorktreeArgs {
-  return WORKTREE_BUILDERS[action](opts);
+  flow_remove: opts => {
+    const args = ['worktree', 'remove', requireBranch(opts)];
+    // The branch itself is kept; git flow refuses uncommitted work without this.
+    if (opts.force) args.push('--force');
+    return { flow: args, fallback: 'Worktree removed; the branch was kept.' };
+  },
+  flow_list: () => ({ flow: ['worktree', 'list'], fallback: 'No worktrees.' }),
+};
+
+function requireBranch(opts: { branch?: string }): string {
+  if (!opts.branch) throw new Error('branch is required: git flow worktree addresses worktrees by branch name.');
+  return opts.branch;
+}
+
+function buildFlowWorktreeArgs(
+  action: WorktreeAction,
+  opts: { branch?: string; path?: string; force?: boolean; lock_reason?: string },
+): WorktreeFlowArgs {
+  if (action === 'flow_add' || action === 'flow_list' || action === 'flow_path' || action === 'flow_remove') {
+    return FLOW_WORKTREE_BUILDERS[action](opts);
+  }
+  throw new Error(`Unknown worktree action: ${action}`);
 }
 
 const WORKTREE_BUILDERS: Record<
@@ -525,10 +584,30 @@ function registerGitWorktreeTool(server: McpServer): void {
     'git_worktree',
     {
       title: 'Git Worktree',
-      description: 'Worktree: add, list, remove, lock, unlock, prune, or repair.',
+      description:
+        'Worktrees, two ways. Path-addressed (add, remove, lock, unlock, prune, repair) drives plain ' +
+        'git worktree and needs nothing but git. Branch-addressed (flow_add, flow_remove, flow_list, ' +
+        'flow_path) drives git flow worktree: it addresses worktrees by branch name, computes paths ' +
+        'from the gitflow.worktreePath template, and tags provenance so cleanup can tell a ' +
+        'git-flow-created worktree (removed) from a hand-made one (detached, work preserved). ' +
+        'The flow_* actions require git-flow-next on PATH.',
       inputSchema: {
         repo_path: RepoPathSchema,
-        action: z.enum(['add', 'list', 'remove', 'lock', 'unlock', 'prune', 'repair']).default('list'),
+        action: z
+          .enum([
+            'add',
+            'list',
+            'remove',
+            'lock',
+            'unlock',
+            'prune',
+            'repair',
+            'flow_add',
+            'flow_remove',
+            'flow_list',
+            'flow_path',
+          ])
+          .default('list'),
         path: z.string().optional(),
         branch: z.string().optional(),
         force: z.boolean().default(false),
@@ -553,7 +632,7 @@ function registerGitWorktreeTool(server: McpServer): void {
       response_format,
     }: {
       repo_path: string | undefined;
-      action: 'add' | 'list' | 'remove' | 'lock' | 'unlock' | 'prune' | 'repair';
+      action: WorktreeAction;
       path?: string;
       branch?: string;
       force: boolean;
@@ -565,8 +644,7 @@ function registerGitWorktreeTool(server: McpServer): void {
     }) => {
       try {
         const repoPath = resolveRepoPath(repo_path);
-        const git = getGit(repoPath);
-        const { args, fallback } = buildWorktreeArgs(action, {
+        const built = buildWorktreeArgs(action, {
           path,
           branch,
           force,
@@ -575,8 +653,10 @@ function registerGitWorktreeTool(server: McpServer): void {
           expire,
           paths,
         });
-        const rawOutput = await git.raw(args);
-        const output = rawOutput.trim() || fallback;
+        const output =
+          'flow' in built
+            ? (await runGitFlow(repoPath, built.flow)) || built.fallback
+            : (await getGit(repoPath).raw(built.args)).trim() || built.fallback;
         return { content: [{ type: 'text', text: render(output, response_format) }], structuredContent: { output } };
       } catch (error) {
         return buildError(error);

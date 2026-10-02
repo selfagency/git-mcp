@@ -16,7 +16,7 @@ Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and O
 - **Safety-first** — destructive operations require explicit confirmation; force push and hook bypass are opt-in via server config
 - **GPG/SSH signing** for commits and tags, with server-level auto-sign support
 - **Git LFS** — track patterns, manage objects, install hooks, migrate history
-- **Git Flow** — git-flow-next-style workflow support with preset init, overview, config CRUD, generalized topic actions, finish recovery, optional hook/filter parity, and classic feature/release/hotfix/support aliases, without requiring the external CLI
+- **Git Flow** — drives the [git-flow-next](https://git-flow.sh) CLI, so the finish state machine, conflict recovery, and worktree lifecycle stay correct as the CLI evolves. Preset init, overview, config CRUD, generalized topic actions, and classic feature/release/hotfix/support aliases
 - **Documentation lookup** — search git-scm.com and fetch man pages directly from the LLM
 - **MCP Resources** — URI-addressable read-only views of status, log, branches, and diff
 - **Bundled agent skill** — `skills/git-mcp-workflow/` documents MCP-first Git workflows, recovery, worktrees, releases, and advanced operations for AI agents and coding agents; installable via [`skills-npm`](https://github.com/antfu/skills-npm) and [skill.sh](https://skills.sh/)
@@ -26,7 +26,8 @@ Built for coding agents in tools like GitHub Copilot, Claude Code, Cursor, and O
 - **Pull requests** — `git_pr`: create/list/merge PRs/MRs on GitHub, GitLab, Forgejo, Gitea, and Bitbucket via provider CLI or REST API
 - **Tangled & Entire awareness** — `git_tangled_check` / `git_entire_check` detect Tangled hosting and Entire session/context management
 - **Multi-repo** — pass `repo_path` per-call or configure a server-level default
-- **Cross-platform** — macOS, Linux, Windows (Git for Windows)
+- **Worktrees** — `git_worktree`: plain `git worktree` by path, or branch-addressed worktrees via `git flow worktree` with path templates and provenance-aware cleanup
+- **Cross-platform** — macOS, Linux, Windows (Git for Windows), all covered by CI
 
 ---
 
@@ -178,21 +179,24 @@ Tools are grouped by domain. Each root tool takes an `action` parameter that sel
 
 ### Workspace (`git_workspace`)
 
-| Action        | Description                                                   |
-| ------------- | ------------------------------------------------------------- |
-| `stash`       | Stash and pop/apply/drop/list/show stash entries              |
-| `stash_all`   | Stash tracked and untracked changes in one operation          |
-| `rebase`      | Start, continue, abort, or skip a rebase                      |
-| `cherry_pick` | Apply one or more commits; supports continue/abort/skip       |
-| `merge`       | Merge branches with full flag control                         |
-| `bisect`      | Binary search for a regression (start, good, bad, reset, log) |
-| `tag`         | Create, list, delete, or push tags; supports GPG/SSH signing  |
-| `worktree`    | Add, list, remove, or prune linked worktrees                  |
-| `submodule`   | Add, update, sync, init, deinit, and list submodules          |
+| Action        | Description                                                        |
+| ------------- | ------------------------------------------------------------------ |
+| `stash`       | Stash and pop/apply/drop/list/show stash entries                   |
+| `stash_all`   | Stash tracked and untracked changes in one operation               |
+| `rebase`      | Start, continue, abort, or skip a rebase                           |
+| `cherry_pick` | Apply one or more commits; supports continue/abort/skip            |
+| `merge`       | Merge branches with full flag control                              |
+| `bisect`      | Binary search for a regression (start, good, bad, reset, log)      |
+| `tag`         | Create, list, delete, or push tags; supports GPG/SSH signing       |
+| `worktree`    | Add, list, remove, lock, unlock, prune, or repair linked worktrees |
+| `submodule`   | Add, update, sync, init, deinit, and list submodules               |
 
 ### Git Flow (`git_flow`)
 
-Preset git-flow-next workflow without requiring the external CLI.
+Drives the [git-flow-next](https://git-flow.sh) CLI, which must be installed and on `PATH`
+(`brew install git-flow-next`, or the [releases page](https://github.com/gittower/git-flow-next/releases)).
+Set `GIT_FLOW_BINARY` to override the path. When the binary is missing, the tool returns an install
+hint rather than failing opaquely.
 
 | Operation  | Description                                                     |
 | ---------- | --------------------------------------------------------------- |
@@ -200,7 +204,26 @@ Preset git-flow-next workflow without requiring the external CLI.
 | `overview` | Show the current flow state and active branches                 |
 | `config`   | Read or write git-flow configuration values                     |
 | `topic`    | Generalized topic branch action (start, finish, publish, track) |
-| `control`  | Flow control: resume interrupted finish, abort, or recover      |
+| `control`  | Resume or abort an in-progress finish or update                 |
+
+Flags are scoped to the target verb: `worktree` and `worktree_path` apply to `start` and `checkout`,
+while `keep_worktree` and `force_worktree` apply to `finish` and `delete`. A mismatch raises instead
+of being silently dropped. See [the tool reference](docs/tools/flow.md) for the full parameter list.
+
+### Worktree (`git_worktree`)
+
+Two backends. Path-addressed actions drive plain `git worktree` and need nothing but git;
+branch-addressed `flow_*` actions drive `git flow worktree`, which addresses worktrees by branch
+name, computes paths from the `gitflow.worktreePath` template, and tags provenance so cleanup can
+tell a git-flow-created worktree (removed) from a hand-made one (detached, uncommitted work
+preserved).
+
+| Action                                                       | Description                               |
+| ------------------------------------------------------------ | ----------------------------------------- |
+| `add`, `list`, `remove`, `lock`, `unlock`, `prune`, `repair` | Plain `git worktree`, identified by path  |
+| `flow_path`, `flow_add`, `flow_remove`, `flow_list`          | `git flow worktree`, identified by branch |
+
+See [the tool reference](docs/tools/worktree.md).
 
 ### LFS (`git_lfs`)
 

@@ -13,9 +13,10 @@ All tools accept a `response_format` parameter: `"markdown"` (default, human-rea
 - [Branches](/tools/branch) — `git_branches`: list/create/delete/rename/checkout and upstream management.
 - [Remote](/tools/remote) — `git_remotes`: remote management plus fetch/pull/push.
 - [Advanced](/tools/advanced) — `git_workspace`: stash, rebase, cherry-pick, bisect, tags, worktrees, submodules.
+- [Worktree](/tools/worktree) — `git_worktree`: path-addressed and branch-addressed worktrees.
 - [Context](/tools/context) — `git_context` with actions `summary`, `search`, `get_config`, `set_config`, `aliases`.
 - [LFS](/tools/lfs) — `git_lfs`: Git Large File Storage.
-- [Git Flow](/tools/flow) — `git_flow`: canonical git-flow-next-style operations plus classic aliases.
+- [Git Flow](/tools/flow) — `git_flow`: drives the git-flow-next CLI.
 - [Workflow](/tools/workflow) — `git_workflow`: resumable multi-step workflow orchestration.
 - [Rewrite](/tools/rewrite) — `git_rewrite`: reword, squash, rewrite-messages, backup/restore history rewriting.
 - [Analytics](/tools/analytics) — `git_analytics`: contributors, churn, activity, summary, file-stats.
@@ -87,7 +88,13 @@ git_lfs  repo_path  action  [patterns] [remote] [include] [exclude] [everything]
 ### Git Flow tool
 
 ```text
-git_flow  repo_path  [action] [operation] [config_action] [topic_action] [control_action] [topic] [name] [new_name] [pattern] [match_mode] [branch_kind] [parent] [prefix] [start_point] [base_ref] [preset] [scope] [config_file] [force] [no_create_branches] [main_branch] [develop_branch] [staging_branch] [production_branch] [remote] [upstream_strategy] [downstream_strategy] [strategy] [fetch] [ff] [keep_branch] [no_backmerge] [rebase_before_finish] [preserve_merges] [publish] [force_delete] [auto_update] [tag] [tag_prefix] [tag_message] [delete_branch]
+git_flow  repo_path  [action] [operation] [config_action] [topic_action] [control_action] [recover] [topic] [name] [new_name] [branch_kind] [parent] [prefix] [start_point] [base_ref] [preset] [scope] [config_file] [shared] [force] [no_create_branches] [main_branch] [develop_branch] [tag_prefix] [upstream_strategy] [downstream_strategy] [auto_update] [strategy] [fetch] [ff] [keep_branch] [rebase_before_finish] [preserve_merges] [publish] [force_delete] [tag] [tag_message] [worktree] [worktrees] [worktree_path] [keep_worktree] [force_worktree]
+```
+
+### Worktree tool
+
+```text
+git_worktree  repo_path  [action=add|list|remove|lock|unlock|prune|repair|flow_add|flow_remove|flow_list|flow_path] [path] [branch] [force] [detached] [lock_reason] [expire] [paths]
 ```
 
 ### Workflow tool

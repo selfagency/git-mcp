@@ -18,6 +18,31 @@ const INSTALL_HINT = [
 ].join('\n');
 
 /**
+ * Runs a raw `git flow` subcommand and returns its stdout.
+ *
+ * Exported for `git_worktree`'s branch-addressed actions, which target the
+ * `worktree` command group directly rather than going through the tool schema.
+ * Callers are responsible for building argv; anything user-supplied belongs in
+ * an argv array, never a shell string.
+ */
+export async function runGitFlow(repoPath: string, args: readonly string[]): Promise<string> {
+  const binary = resolveExecutable(GIT_FLOW_BINARY);
+
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(binary, [...args], { cwd: repoPath, timeout: 10 * 60_000 }));
+  } catch (error) {
+    const failure = error as { message?: string; stdout?: string; stderr?: string };
+    const message = failure.message ?? String(error);
+    if (/ENOENT|not found/i.test(message)) {
+      throw new Error(INSTALL_HINT);
+    }
+    throw new Error(`git flow ${args.join(' ')} failed: ${message}${failure.stderr ? `\n${failure.stderr}` : ''}`);
+  }
+  return stdout.trim();
+}
+
+/**
  * Runs a git-flow operation through the git-flow-next CLI.
  *
  * This is a thin argv wrapper, not a reimplementation. git-flow-next owns the
@@ -27,20 +52,6 @@ const INSTALL_HINT = [
  */
 export async function runFlowAction(repoPath: string, options: FlowArgOptions): Promise<FlowActionResult> {
   const args = buildFlowArgs(options);
-  const binary = resolveExecutable(GIT_FLOW_BINARY);
-
-  let stdout: string;
-  try {
-    ({ stdout } = await execFileAsync(binary, args, { cwd: repoPath, timeout: 10 * 60_000 }));
-  } catch (error) {
-    const failure = error as { message?: string; stdout?: string; stderr?: string };
-    const message = failure.message ?? String(error);
-    if (/ENOENT|not found/i.test(message)) {
-      throw new Error(INSTALL_HINT);
-    }
-    throw new Error(`git flow ${args.join(' ')} failed: ${message}${failure.stderr ? `\n${failure.stderr}` : ''}`);
-  }
-
-  const output = stdout.trim();
+  const output = await runGitFlow(repoPath, args);
   return { markdown: output || 'git flow completed with no output.' };
 }

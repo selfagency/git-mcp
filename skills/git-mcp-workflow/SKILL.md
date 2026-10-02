@@ -106,12 +106,29 @@ Before Git operations, consider whether the repo is managed by GitButler or Juju
 - `git_tangled_check` — if the repo is hosted on Tangled, git transport works normally via git-mcp; pull requests are managed via the Tangled web UI (no documented PR API/CLI)
 - `git_entire_check` — if the repo is Entire-managed (`.entire/`), use the `entire` CLI for session/checkpoint/attribution queries
 
+### 8. Worktrees
+
+Two backends on `git_worktree`. Choose by how you want to name the target.
+
+- Path-addressed (`add`, `remove`, `lock`, `unlock`, `prune`, `repair`) drives plain `git worktree`
+  and needs nothing beyond git. Use it when you know where the worktree lives.
+- Branch-addressed (`flow_path`, `flow_add`, `flow_remove`, `flow_list`) drives `git flow worktree`,
+  which computes the path from `gitflow.worktreePath` and records the worktrees it created. Use it
+  when you think in branches.
+
+The `flow_*` actions need the git-flow-next CLI, same as `git_flow`.
+
+`flow_path` is free and side-effect free — use it to discover where a branch would land before
+deciding anything. `flow_remove` keeps the branch; it removes only the worktree, and refuses
+uncommitted work unless you pass `force: true`.
+
 ## Common tool families
 
 - `git_context`, `git_status`, `git_history` for inspection
 - `git_commits`, `git_branches`, `git_remotes` for everyday changes
-- `git_workspace` for stash, rebase, cherry-pick, merge, bisect, tag, worktree, and submodule flows
-- `git_flow` for git-flow-next-style lifecycle operations
+- `git_workspace` for stash, rebase, cherry-pick, merge, bisect, tag, and submodule flows
+- `git_worktree` for worktrees, addressed by path (plain git) or by branch (git flow worktree)
+- `git_flow` for git-flow-next lifecycle operations; drives the git-flow-next CLI, which must be installed
 - `git_lfs` for large-file workflows
 - `git_rewrite` for history rewriting (reword, squash, rewrite-messages, backup/restore)
 - `git_analytics` for repository insights (contributors, churn, activity, summary, file-stats)
@@ -140,12 +157,13 @@ See `references/tooling-map.md` for the full tool and action catalog.
 - `git_workspace action=rebase` — branch cleanup or rebasing onto upstream
 - `git_workspace action=cherry_pick` — backports and targeted fixes
 - `git_workspace action=bisect` — regression hunting
-- `git_workspace action=worktree` — parallel branch work without stashing
+- `git_worktree action=add` — parallel branch work without stashing
 - `git_workspace action=merge` — merge branches with full flag control
 - `git_workspace action=tag` — release tags
 - `git_workspace action=submodule` — embedded repositories
 - `git_lfs` — large binary assets
 - `git_flow` — scheduled release workflows, preset init, flow overview/config inspection, config CRUD, and finish recovery
+- `git_worktree action=flow_*` — branch-addressed worktrees with path templates and provenance-aware cleanup
 - `git_rewrite` — reword, squash, rewrite-messages, and backup/restore for history rewriting
 - `git_analytics` — contributors, churn, activity, summary, and file-stats
 - `git_pr` — create/list/merge pull requests on the detected forge
