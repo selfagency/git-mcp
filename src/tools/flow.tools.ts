@@ -4,17 +4,25 @@ import { resolveRepoPath } from '../config.js';
 import { toGitError } from '../git/client.js';
 import {
   FlowBranchKindSchema,
-  FlowConfigActionSchema,
   FlowConfigScopeSchema,
   FlowControlActionSchema,
-  FlowMatchModeSchema,
   FlowMergeStrategySchema,
   FlowPresetSchema,
   FlowTopicActionSchema,
   RepoPathSchema,
   ResponseFormatSchema,
 } from '../schemas/index.js';
-import { runFlowAction, type FlowLegacyAction, type FlowOperation } from '../services/flow.service.js';
+import { runFlowAction } from '../services/flow.service.js';
+import type {
+  FlowBranchKind,
+  FlowConfigAction,
+  FlowControlAction,
+  FlowMergeStrategy,
+  FlowOperation,
+  FlowPreset,
+  FlowScope,
+  FlowTopicAction,
+} from '../types.js';
 import { renderMarkdownData } from './render.js';
 
 function render(markdown: string, data: unknown, format: 'markdown' | 'json'): string {
@@ -80,42 +88,30 @@ const FLOW_ACTION_VALUES = [
 
 const FLOW_OPERATION_VALUES = ['init', 'overview', 'config', 'topic', 'control'] as const;
 
-type FlowConfigActionValue = 'list' | 'add' | 'update' | 'rename' | 'delete';
-type FlowTopicActionValue =
-  | 'start'
-  | 'finish'
-  | 'publish'
-  | 'list'
-  | 'update'
-  | 'delete'
-  | 'rename'
-  | 'checkout'
-  | 'track';
-type FlowControlActionValue = 'continue' | 'abort';
-type FlowMatchModeValue = 'exact' | 'prefix';
-type FlowBranchKindValue = 'base' | 'topic';
-type FlowPresetValue = 'classic' | 'github' | 'gitlab';
-type FlowScopeValue = 'local' | 'global' | 'system' | 'file';
-type FlowStrategyValue = 'merge' | 'rebase' | 'squash' | 'none';
-
 export function registerFlowTools(server: McpServer): void {
   server.registerTool(
     'git_flow',
     {
       title: 'Git Flow Actions',
       description:
-        'Implements git-flow-next-style workflows directly, without requiring the ' +
-        'external CLI. The canonical contract uses operation=config/topic/control ' +
-        'with subactions, while legacy alias actions remain supported for ' +
-        'compatibility. Supports preset init, overview, config CRUD, generalized ' +
-        'topic lifecycle operations, and finish recovery.',
+        'Drives the git-flow-next CLI. The CLI owns the workflow semantics — the finish ' +
+        'state machine, conflict recovery, and worktree lifecycle — so it must be installed ' +
+        'and on PATH; this tool only builds argv. Prefer operation=config/topic/control with ' +
+        'subactions; the legacy action aliases remain for compatibility.',
       inputSchema: {
         repo_path: RepoPathSchema,
         action: z.enum(FLOW_ACTION_VALUES).optional().describe('Legacy-compatible action alias.'),
         operation: z.enum(FLOW_OPERATION_VALUES).optional().describe('Canonical git_flow operation.'),
-        config_action: FlowConfigActionSchema.optional(),
+        config_action: z
+          .enum(['list', 'add', 'update', 'rename', 'delete', 'status', 'sync'])
+          .optional()
+          .describe('config_action is required for operation=config.'),
         topic_action: FlowTopicActionSchema.optional(),
         control_action: FlowControlActionSchema.optional(),
+        recover: z
+          .enum(['finish', 'update'])
+          .default('finish')
+          .describe('Which in-progress operation control_action targets (default: finish).'),
         topic: z
           .string()
           .optional()
@@ -127,11 +123,6 @@ export function registerFlowTools(server: McpServer): void {
           .optional()
           .describe('Branch short name, branch type name, or release/hotfix version depending on the action.'),
         new_name: z.string().optional().describe('New short name or branch type name for rename operations.'),
-        pattern: z
-          .string()
-          .optional()
-          .describe('Optional glob pattern used by list actions to filter topic branch names.'),
-        match_mode: FlowMatchModeSchema.optional(),
         branch_kind: FlowBranchKindSchema.optional(),
         parent: z.string().optional().describe('Parent/base branch for flow config mutations.'),
         prefix: z.string().optional().describe('Branch prefix for topic type definitions, such as "feature/".'),
@@ -140,6 +131,7 @@ export function registerFlowTools(server: McpServer): void {
         preset: FlowPresetSchema.optional(),
         scope: FlowConfigScopeSchema.optional(),
         config_file: z.string().optional().describe('Path to a git config file when scope is "file".'),
+        shared: z.boolean().default(false).describe('Write a committable .gitflow file (init, or config edit).'),
         force: z.boolean().default(false).describe('Force re-initialization even if git-flow is already configured.'),
         no_create_branches: z
           .boolean()
@@ -153,11 +145,14 @@ export function registerFlowTools(server: McpServer): void {
           .string()
           .optional()
           .describe('Override the develop branch name (default: gitflow.branch.develop ' + 'config or "develop").'),
-        staging_branch: z.string().optional().describe('Override the staging branch name used by the gitlab preset.'),
+        staging_branch: z
+          .string()
+          .optional()
+          .describe('NOT SUPPORTED by git-flow-next 2.1.0 init; use preset=gitlab instead.'),
         production_branch: z
           .string()
           .optional()
-          .describe('Override the production branch name used by the gitlab preset.'),
+          .describe('NOT SUPPORTED by git-flow-next 2.1.0 init; use preset=gitlab instead.'),
         remote: z.string().optional().describe('Remote name for publish operations (default: "origin").'),
         upstream_strategy: FlowMergeStrategySchema.optional(),
         downstream_strategy: FlowMergeStrategySchema.optional(),
@@ -165,7 +160,6 @@ export function registerFlowTools(server: McpServer): void {
         fetch: z.boolean().optional().describe('Fetch the remote before finish when a remote is configured.'),
         ff: z.boolean().optional().describe('Use fast-forward behavior when the selected strategy allows it.'),
         keep_branch: z.boolean().optional().describe('Keep the topic branch after finish.'),
-        no_backmerge: z.boolean().default(false).describe('Skip configured backmerge branches during finish.'),
         rebase_before_finish: z
           .boolean()
           .optional()
@@ -180,10 +174,27 @@ export function registerFlowTools(server: McpServer): void {
           .describe('Create an annotated tag when finishing a release or hotfix (default: true).'),
         tag_message: z.string().optional().describe('Message for the version tag.'),
         tag_prefix: z.string().optional().describe('Tag prefix for flow config mutations.'),
-        delete_branch: z
+        worktree: z
           .boolean()
-          .default(true)
-          .describe('Delete the branch after a finish operation (default: true).'),
+          .optional()
+          .describe(
+            'Worktree handling for the branch. finish/delete expose only --keep-worktree and ' +
+              '--force-worktree; start and checkout expose --worktree/--no-worktree/--worktree-path. ' +
+              'Using the wrong pair raises rather than being silently ignored.',
+          ),
+        worktrees: z
+          .boolean()
+          .default(false)
+          .describe('Append a worktree column to a list (only valid with topic_action=list).'),
+        worktree_path: z.string().optional().describe('Create the worktree at this path instead of the computed one.'),
+        keep_worktree: z
+          .boolean()
+          .default(false)
+          .describe('On finish/delete, keep the branch worktree detached instead of removing it.'),
+        force_worktree: z
+          .boolean()
+          .default(false)
+          .describe('On finish/delete, remove a git-flow-created worktree even with uncommitted changes.'),
         response_format: ResponseFormatSchema,
       },
       annotations: {
@@ -200,11 +211,10 @@ export function registerFlowTools(server: McpServer): void {
       config_action,
       topic_action,
       control_action,
+      recover,
       topic,
       name,
       new_name,
-      pattern,
-      match_mode,
       branch_kind,
       parent,
       prefix,
@@ -213,6 +223,7 @@ export function registerFlowTools(server: McpServer): void {
       preset,
       scope,
       config_file,
+      shared,
       force,
       no_create_branches,
       main_branch,
@@ -226,7 +237,6 @@ export function registerFlowTools(server: McpServer): void {
       fetch,
       ff,
       keep_branch,
-      no_backmerge,
       rebase_before_finish,
       preserve_merges,
       publish,
@@ -235,28 +245,32 @@ export function registerFlowTools(server: McpServer): void {
       tag,
       tag_message,
       tag_prefix,
-      delete_branch,
+      worktree,
+      worktrees,
+      worktree_path,
+      keep_worktree,
+      force_worktree,
       response_format,
     }: {
       repo_path: string | undefined;
       action?: (typeof FLOW_ACTION_VALUES)[number];
       operation?: FlowOperation;
-      config_action?: FlowConfigActionValue;
-      topic_action?: FlowTopicActionValue;
-      control_action?: FlowControlActionValue;
+      config_action?: FlowConfigAction;
+      topic_action?: FlowTopicAction;
+      control_action?: FlowControlAction;
+      recover?: 'finish' | 'update';
       topic?: string;
       name?: string;
       new_name?: string;
-      pattern?: string;
-      match_mode?: FlowMatchModeValue;
-      branch_kind?: FlowBranchKindValue;
+      branch_kind?: FlowBranchKind;
       parent?: string;
       prefix?: string;
       start_point?: string;
       base_ref?: string;
-      preset?: FlowPresetValue;
-      scope?: FlowScopeValue;
+      preset?: FlowPreset;
+      scope?: FlowScope;
       config_file?: string;
+      shared: boolean;
       force: boolean;
       no_create_branches: boolean;
       main_branch?: string;
@@ -264,13 +278,12 @@ export function registerFlowTools(server: McpServer): void {
       staging_branch?: string;
       production_branch?: string;
       remote?: string;
-      upstream_strategy?: FlowStrategyValue;
-      downstream_strategy?: FlowStrategyValue;
-      strategy?: FlowStrategyValue;
+      upstream_strategy?: FlowMergeStrategy;
+      downstream_strategy?: FlowMergeStrategy;
+      strategy?: FlowMergeStrategy;
       fetch?: boolean;
       ff?: boolean;
       keep_branch?: boolean;
-      no_backmerge: boolean;
       rebase_before_finish?: boolean;
       preserve_merges?: boolean;
       publish?: boolean;
@@ -279,22 +292,25 @@ export function registerFlowTools(server: McpServer): void {
       tag: boolean;
       tag_message?: string;
       tag_prefix?: string;
-      delete_branch: boolean;
+      worktree?: boolean;
+      worktrees: boolean;
+      worktree_path?: string;
+      keep_worktree: boolean;
+      force_worktree: boolean;
       response_format: 'markdown' | 'json';
     }) => {
       try {
         const repoPath = resolveRepoPath(repo_path);
         const result = await runFlowAction(repoPath, {
-          action: action as FlowLegacyAction | undefined,
+          legacyAction: action,
           operation,
           configAction: config_action,
           topicAction: topic_action,
           controlAction: control_action,
+          recover: recover,
           topic,
           name,
           newName: new_name,
-          pattern,
-          matchMode: match_mode,
           branchKind: branch_kind,
           parent,
           prefix,
@@ -303,6 +319,7 @@ export function registerFlowTools(server: McpServer): void {
           preset,
           scope,
           configFile: config_file,
+          shared,
           force,
           noCreateBranches: no_create_branches,
           mainBranch: main_branch,
@@ -316,7 +333,6 @@ export function registerFlowTools(server: McpServer): void {
           fetch,
           ff,
           keepBranch: keep_branch,
-          noBackmerge: no_backmerge,
           rebaseBeforeFinish: rebase_before_finish,
           preserveMerges: preserve_merges,
           publish,
@@ -325,13 +341,14 @@ export function registerFlowTools(server: McpServer): void {
           tag,
           tagMessage: tag_message,
           tagPrefix: tag_prefix,
-          deleteBranch: delete_branch,
+          worktree,
+          worktrees,
+          worktreePath: worktree_path,
+          keepWorktree: keep_worktree,
+          forceWorktree: force_worktree,
         });
 
-        const structuredContent: Record<string, unknown> =
-          result.data && typeof result.data === 'object' && !Array.isArray(result.data)
-            ? (result.data as Record<string, unknown>)
-            : { output: result.data ?? result.markdown };
+        const structuredContent: Record<string, unknown> = { output: result.markdown };
 
         return {
           content: [
