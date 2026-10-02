@@ -39,6 +39,16 @@ jobs:
         node-version: [ 20.x ]
 
     steps:
+      - name: Configure git line endings
+        # Git for Windows defaults core.autocrlf to true, which rewrites the
+        # checkout to CRLF. oxfmt then sees every file as unformatted while the
+        # identical tree passes on ubuntu. Must run before checkout, and is
+        # scoped to the runner rather than the repo so no developer config is
+        # touched.
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.autocrlf false
+
       - name: Checkout
         uses: actions/checkout@v4
 
