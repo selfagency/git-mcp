@@ -76,6 +76,13 @@ const CONFIG_VERB: Record<Exclude<FlowConfigAction, 'list' | 'status' | 'sync'>,
   delete: 'delete',
 };
 
+/** Verbs that take no branch kind or name; the verb name is the argv. */
+type FlowStandaloneConfigVerb = 'list' | 'status' | 'sync';
+
+function isStandaloneConfigVerb(action: FlowConfigAction): action is FlowStandaloneConfigVerb {
+  return action === 'list' || action === 'status' || action === 'sync';
+}
+
 /** `init` maps topic-type prefixes onto their flags; gitlab's staging/production have none. */
 const INIT_FLAG: Record<string, string> = {
   mainBranch: '--main',
@@ -228,23 +235,30 @@ function initArgs(options: FlowArgOptions): string[] {
 function configArgs(options: FlowArgOptions): string[] {
   const action = options.configAction;
   if (!action) throw new Error('config_action is required for operation=config.');
-  if (action === 'list') return ['config', 'list'];
-  if (action === 'status') return ['config', 'status'];
-  if (action === 'sync') return ['config', 'sync'];
+  if (isStandaloneConfigVerb(action)) return ['config', action];
 
   if (!options.branchKind) throw new Error('branch_kind is required for config add, update, rename, and delete.');
   if (!options.name) throw new Error('name is required for config operations.');
   if (action === 'rename' && !options.newName) throw new Error('new_name is required for config rename.');
 
-  const args = ['config', CONFIG_VERB[action], options.branchKind, options.name];
-  // Only `add` takes a parent; edit/rename/delete reject a second positional.
-  if (action === 'add' && options.parent) args.push(options.parent);
-  if (action === 'rename' && options.newName) args.push(options.newName);
+  return ['config', CONFIG_VERB[action], options.branchKind, options.name].concat(
+    configPositionals(options, action),
+    configFlags(options),
+  );
+}
 
+function configPositionals(options: FlowArgOptions, action: string): string[] {
+  // Only `add` takes a parent; edit/rename/delete reject a second positional.
+  if (action === 'add' && options.parent) return [options.parent];
+  if (action === 'rename' && options.newName) return [options.newName];
+  return [];
+}
+
+function configFlags(options: FlowArgOptions): string[] {
+  const args: string[] = [];
   for (const [key, flag] of Object.entries(CONFIG_FLAG)) {
     const value = options[key as keyof FlowArgOptions];
-    if (value === undefined) continue;
-    args.push(typeof value === 'boolean' ? `${flag}=${value}` : `${flag}=${value as string}`);
+    if (value !== undefined) args.push(`${flag}=${value}`);
   }
   if (options.shared) args.push('--shared');
   return args;
@@ -269,84 +283,94 @@ function topicArgs(options: FlowArgOptions): string[] {
       `topic="${options.topic}" is not a git-flow-next command. Built-in types: ${TOPIC_TYPES.join(', ')}.`,
     );
 
-  const allowed = VERB_FLAGS[action];
-  const flags = collectFlags(options, allowed);
+  const flags = collectFlags(options, VERB_FLAGS[action]);
+  return [options.topic, action].concat(topicPositionals(options, action), flags);
+}
 
-  const args = [options.topic, action];
+function topicPositionals(options: FlowArgOptions, action: FlowTopicAction): string[] {
   if (action === 'rename') {
     if (!options.newName) throw new Error('new_name is required for topic_action=rename.');
-    if (options.name) args.push(options.name, options.newName);
-    else args.push(options.newName);
-  } else if (action === 'track') {
-    if (!options.name) throw new Error('name is required for topic_action=track.');
-    args.push(options.name);
-  } else if (action === 'list') {
-    if (options.name) throw new Error('name is not accepted by topic_action=list; it lists every branch of the type.');
-  } else {
-    if (options.name) args.push(options.name);
-    if (options.baseRef && action === 'start') args.push(options.baseRef);
-    else if (options.baseRef) throw new Error(`base_ref is only accepted by topic_action=start, not ${action}.`);
+    return options.name ? [options.name, options.newName] : [options.newName];
   }
-  args.push(...flags);
-  return args;
+  if (action === 'track') {
+    if (!options.name) throw new Error('name is required for topic_action=track.');
+    return [options.name];
+  }
+  if (action === 'list') {
+    if (options.name) throw new Error('name is not accepted by topic_action=list; it lists every branch of the type.');
+    return [];
+  }
+  if (!options.baseRef) return options.name ? [options.name] : [];
+  if (action !== 'start') throw new Error(`base_ref is only accepted by topic_action=start, not ${action}.`);
+  return options.name ? [options.name, options.baseRef] : [options.baseRef];
 }
 
 /** Maps options onto flags, rejecting any the target verb does not define. */
 function collectFlags(options: FlowArgOptions, allowed: ReadonlySet<string>): string[] {
-  const args: string[] = [];
-  const push = (flag: string): void => {
-    assertFlagAllowed(options, flag, allowed);
-    args.push(`--${flag}`);
-  };
-  const pushValue = (flag: string, value: string | boolean): void => {
-    assertFlagAllowed(options, flag, allowed);
-    args.push(typeof value === 'boolean' ? `${flag}=${value}` : `--${flag}=${value}`);
+  // Validate coherence before any flag lookup: naming a path without asking for
+  // a worktree is a self-contradictory request, and saying so beats the generic
+  // "flag not allowed here" it would otherwise trip over first.
+  if (options.worktreePath && options.worktree !== true) {
+    throw new Error('worktree_path requires worktree=true; the CLI treats naming a path as a request for a worktree.');
+  }
+
+  const emit = (pairs: ReadonlyArray<readonly [string, boolean]>): void => {
+    for (const [flag, enabled] of pairs) {
+      if (enabled) args.push(`--${guard(options, allowed, flag)}`);
+    }
   };
 
-  if (options.fetch === true) push('fetch');
-  if (options.fetch === false) push('no-fetch');
-  if (options.keepBranch === true) push('keep');
-  if (options.keepBranch === false) push('no-keep');
-  if (options.publish) push('push');
-  if (options.forceDelete) push('force-delete');
-  if (options.keepWorktree) push('keep-worktree');
-  if (options.forceWorktree) push('force-worktree');
-  if (options.worktrees) push('worktrees');
-  if (options.worktree === true) push('worktree');
-  if (options.worktree === false) push('no-worktree');
-  if (options.worktreePath) {
-    // Namer's intent is a worktree; make that explicit rather than relying on
-    // the CLI's implicit behaviour.
-    if (options.worktree !== true) {
-      throw new Error(
-        'worktree_path requires worktree=true; the CLI treats naming a path as a request for a worktree.',
-      );
-    }
-    pushValue('worktree-path', options.worktreePath);
-  }
-  if (options.rebaseBeforeFinish) push('rebase');
-  if (options.preserveMerges) push('preserve-merges');
-  if (options.ff) push('ff');
-  // git-flow has no --strategy flag; the strategy is expressed as the
-  // positive/negative pair it does define.
-  if (options.strategy === 'rebase') push('rebase');
-  if (options.strategy === 'squash') push('squash');
-  if (options.strategy === 'none') {
-    push('no-rebase');
-    push('no-squash');
-  }
-  if (options.tag === true) push('tag');
-  if (options.tag === false) push('notag');
-  if (options.tagMessage) pushValue('message', options.tagMessage);
+  const args: string[] = [];
+  emit(lifecycleFlags(options));
+  if (options.worktreePath) args.push(`--${guard(options, allowed, 'worktree-path')}=${options.worktreePath}`);
+  emit(tagFlags(options));
+  if (options.tagMessage) args.push(`--${guard(options, allowed, 'message')}=${options.tagMessage}`);
   return args;
 }
 
-function assertFlagAllowed(options: FlowArgOptions, flag: string, allowed: ReadonlySet<string>): void {
+/**
+ * Valueless flags in emission order. git-flow has no `--strategy` flag, so
+ * `strategy` expands into the positive/negative pairs it does define. Kept in
+ * two groups only so the worktree path lands between them, as the emitted argv
+ * has always done.
+ */
+function lifecycleFlags(options: FlowArgOptions): Array<readonly [string, boolean]> {
+  return [
+    ['fetch', options.fetch === true],
+    ['no-fetch', options.fetch === false],
+    ['keep', options.keepBranch === true],
+    ['no-keep', options.keepBranch === false],
+    ['push', Boolean(options.publish)],
+    ['force-delete', Boolean(options.forceDelete)],
+    ['keep-worktree', Boolean(options.keepWorktree)],
+    ['force-worktree', Boolean(options.forceWorktree)],
+    ['worktrees', Boolean(options.worktrees)],
+    ['worktree', options.worktree === true],
+    ['no-worktree', options.worktree === false],
+    ['rebase', Boolean(options.rebaseBeforeFinish) || options.strategy === 'rebase'],
+    ['preserve-merges', Boolean(options.preserveMerges)],
+    ['ff', Boolean(options.ff)],
+    ['squash', options.strategy === 'squash'],
+    ['no-rebase', options.strategy === 'none'],
+    ['no-squash', options.strategy === 'none'],
+  ];
+}
+
+function tagFlags(options: FlowArgOptions): Array<readonly [string, boolean]> {
+  return [
+    ['tag', options.tag === true],
+    ['notag', options.tag === false],
+  ];
+}
+
+/** Returns the bare flag name, or raises when the target verb does not define it. */
+function guard(options: FlowArgOptions, allowed: ReadonlySet<string>, flag: string): string {
   if (!allowed.has(flag)) {
     throw new Error(
       `git flow does not accept --${flag} for this operation (topic_action=${options.topicAction ?? 'none'}).`,
     );
   }
+  return flag;
 }
 
 function assertSupported(options: FlowArgOptions): void {

@@ -37,7 +37,8 @@ export async function runGitFlow(repoPath: string, args: readonly string[]): Pro
     if (/ENOENT|not found/i.test(message)) {
       throw new Error(INSTALL_HINT);
     }
-    throw new Error(`git flow ${args.join(' ')} failed: ${message}${failure.stderr ? `\n${failure.stderr}` : ''}`);
+    const stderr = failure.stderr ? `\n${failure.stderr}` : '';
+    throw new Error(`git flow ${args.join(' ')} failed: ${message}${stderr}`);
   }
   return stdout.trim();
 }

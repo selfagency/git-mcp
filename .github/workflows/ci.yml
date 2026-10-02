@@ -93,8 +93,10 @@ jobs:
             *) echo "unsupported runner: ${{ runner.os }}"; exit 1 ;;
           esac
           base="https://github.com/gittower/git-flow-next/releases/download/${GIT_FLOW_VERSION}"
-          curl -fsSL -o "$RUNNER_TEMP/$asset" "$base/$asset"
-          curl -fsSL -o "$RUNNER_TEMP/checksums.txt" "$base/git-flow-next-${GIT_FLOW_VERSION}-checksums.txt"
+          # Pin the protocol: a redirect to plain http would otherwise be
+          # followed, and this is the binary we go on to execute.
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/$asset" "$base/$asset"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/checksums.txt" "$base/git-flow-next-${GIT_FLOW_VERSION}-checksums.txt"
           cd "$RUNNER_TEMP"
           grep " $asset\$" checksums.txt | sha256sum --check --strict -
           if [[ "$asset" == *.zip ]]; then
