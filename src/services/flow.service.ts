@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { ALLOW_FLOW_HOOKS } from '../config.js';
 import { CHARACTER_LIMIT } from '../constants.js';
 import { getGit, toGitError, validatePathArgument, validateRepoPath } from '../git/client.js';
+import { killTreeCommand, resolveExecutable, resolveGitShell } from '../platform/exec.js';
 import type {
   FlowActiveBranch,
   FlowBranchDefinition,
@@ -1283,8 +1284,23 @@ async function runHook(
     };
   }
 
+  // git-flow hooks are #!/bin/sh scripts. Windows has no shebang handling, so
+  // route them through the sh.exe that Git for Windows ships.
+  const hookArgs = [context.topic, context.shortName, context.fullName];
+  const shell = process.platform === 'win32' ? resolveGitShell(await getGitExecPath(repoPath)) : null;
+  if (process.platform === 'win32' && !shell) {
+    return {
+      phase,
+      hookPath,
+      executed: false,
+      skippedReason: 'Git for Windows sh.exe not found; cannot run shell hook scripts.',
+    };
+  }
+
   try {
-    const result = await execFileAsync(hookPath, [context.topic, context.shortName, context.fullName], {
+    const { file, args } = shell ? { file: shell, args: [hookPath, ...hookArgs] } : { file: hookPath, args: hookArgs };
+
+    const result = await execFileAsync(file, args, {
       cwd: repoPath,
       env: buildSafeChildEnv({
         GITFLOW_ACTION: phase,
@@ -1317,6 +1333,11 @@ function splitCommand(command: string): { executable: string; args: string[] } {
   return { executable, args };
 }
 
+/** Git's own exec-path, used to locate Git for Windows' bundled sh.exe. */
+async function getGitExecPath(repoPath: string): Promise<string> {
+  return (await getGit(repoPath).raw(['--exec-path'])).trim();
+}
+
 async function runFilterProgram(
   executable: string,
   args: readonly string[],
@@ -1324,13 +1345,26 @@ async function runFilterProgram(
   input: string,
 ): Promise<{ stdout: string; stderr: string }> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(executable, [...args], {
+    // PATH/PATHEXT resolution: on Windows a configured filter is often an npm
+    // `.cmd` shim, which spawn() cannot exec by bare name (CVE-2024-27980).
+    const child = spawn(resolveExecutable(executable), [...args], {
       cwd: repoPath,
       env: buildSafeChildEnv({
         GITFLOW_FILTER_INPUT: input,
       }),
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+
+    // Windows has no process groups; child.kill() orphans grandchildren, which
+    // then hold the repository lock. taskkill /T takes the tree with it.
+    const terminate = (): void => {
+      const tree = child.pid === undefined ? null : killTreeCommand(child.pid);
+      if (tree) {
+        execFile(tree.file, tree.args, () => child.kill('SIGKILL'));
+      } else {
+        child.kill('SIGKILL');
+      }
+    };
 
     let stdout = '';
     let stderr = '';
@@ -1341,7 +1375,7 @@ async function runFilterProgram(
         return;
       }
       settled = true;
-      child.kill('SIGKILL');
+      terminate();
       reject(new Error(`Filter timed out after ${FILTER_MAX_RUNTIME_MS}ms.`));
     }, FILTER_MAX_RUNTIME_MS);
 
@@ -1378,7 +1412,7 @@ async function runFilterProgram(
       try {
         stdout = appendBounded(stdout, chunk.toString());
       } catch (error) {
-        child.kill('SIGKILL');
+        terminate();
         rejectOnce(error instanceof Error ? error : new Error(String(error)));
       }
     });
@@ -1386,7 +1420,7 @@ async function runFilterProgram(
       try {
         stderr = appendBounded(stderr, chunk.toString());
       } catch (error) {
-        child.kill('SIGKILL');
+        terminate();
         rejectOnce(error instanceof Error ? error : new Error(String(error)));
       }
     });
