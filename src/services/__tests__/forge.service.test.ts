@@ -14,6 +14,15 @@ vi.mock('../../config.js', () => ({
   BITBUCKET_TOKEN: 'bb-token',
 }));
 
+// detectForge probes the provider CLI on every call. Without this the test
+// spawns whatever happens to be installed — on a runner with `gh` present that
+// is a real process launch, which on Windows can sit behind antivirus long
+// enough to blow vitest's 5s test timeout. These assertions are about URL
+// parsing, so the probe is stubbed rather than depended upon.
+vi.mock('../../git/external.js', () => ({
+  probeBinary: vi.fn(async () => ({ available: true, version: 'stub' })),
+}));
+
 import { getGit } from '../../git/client.js';
 import { detectForge } from '../forge.service.js';
 
