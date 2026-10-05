@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { GIT_FORGE_PROVIDER } from '../config.js';
 import { getGit } from '../git/client.js';
-
-const execFileAsync = promisify(execFile);
+import { probeBinary } from '../git/external.js';
 
 export type ForgeProvider = 'github' | 'gitlab' | 'forgejo' | 'gitea' | 'bitbucket' | 'unknown';
 
@@ -70,12 +67,9 @@ function detectProvider(host: string): ForgeProvider {
 }
 
 async function cliAvailable(cli: string): Promise<boolean> {
-  try {
-    await execFileAsync(cli, ['--version'], { timeout: 5_000 });
-    return true;
-  } catch {
-    return false;
-  }
+  // probeBinary resolves PATH/PATHEXT first — on Windows the forge CLIs are
+  // `.cmd` shims that execFile cannot spawn by bare name.
+  return (await probeBinary(cli)).available;
 }
 
 export async function detectForge(repoPath: string): Promise<ForgeContext> {

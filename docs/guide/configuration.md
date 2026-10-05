@@ -78,3 +78,27 @@ Per-request signing can also be enabled by passing `sign: true` (and optionally 
 This ensures that even if an AI agent or coding agent requests a dangerous operation, it cannot succeed unless you have explicitly permitted it at the server level.
 
 See also: [Safety model](/guide/safety)
+## External binaries
+
+Some tools wrap binaries rather than reimplementing them:
+
+| Tool | Needs | Without it |
+|---|---|---|
+| `git_flow` | git-flow-next | Returns an install hint naming `brew install git-flow-next` and the releases page. |
+| `git_worktree` `flow_*` actions | git-flow-next | Path-addressed actions are unaffected. |
+| `git_but_check` / `git_jj_check` | GitButler / Jujutsu | Report unavailability. |
+
+git-mcp resolves these through `PATH` and `PATHEXT`, so npm-installed `.cmd` shims work on Windows.
+Set `GIT_FLOW_BINARY`, `BUT_BINARY`, or `JJ_BINARY` to an absolute path if a binary is somewhere
+unusual.
+
+## Windows notes
+
+Supported, and covered by CI on `windows-latest`. Two Git for Windows behaviours are worth knowing
+because they change what you see rather than whether something works:
+
+- **`core.autocrlf` defaults to `true`**, so diffs and status can show whole-file changes that are
+  only line endings. git-mcp does not change this; set it yourself if it is not what you want.
+- **Git for Windows ships a POSIX `sh`** but not Unix file permissions, so hooks and filters run
+  through `sh.exe` rather than directly. If a hook looks ignored, check that `sh.exe` is reachable
+  relative to your `git` install.

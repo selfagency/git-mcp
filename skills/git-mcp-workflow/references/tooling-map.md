@@ -6,7 +6,7 @@ This reference translates common Git intentions into the correct `git-mcp` tool 
 
 ## Canonical Tool Surface
 
-The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `git_ping`, `git_rewrite`, `git_analytics`, `git_pr`, `git_but_check`, `git_jj_check`, `git_tangled_check`, and `git_entire_check`. These are the only tools available. Use them exclusively.
+The server exposes **7 grouped tools** plus `git_flow`, `git_worktree`, `git_lfs`, `git_docs`, `git_ping`, `git_rewrite`, `git_analytics`, `git_pr`, `git_but_check`, `git_jj_check`, `git_tangled_check`, and `git_entire_check`. These are the only tools available. Use them exclusively.
 
 ---
 
@@ -206,7 +206,7 @@ The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `
 
 ---
 
-## `git_workspace` — Stash, rebase, cherry-pick, merge, bisect, tag, worktree, submodule
+## `git_workspace` — Stash, rebase, cherry-pick, merge, bisect, tag, submodule
 
 ### `action=stash`
 
@@ -272,16 +272,47 @@ The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `
 
 ---
 
+## `git_worktree` — Worktrees
+
+Two backends. Pick by how you want to name the target.
+
+**Path-addressed** — plain `git worktree`, nothing beyond git required:
+
+- `action`: `add` / `list` / `remove` / `lock` / `unlock` / `prune` / `repair`
+- For add: `path` (required), plus `branch` or `detached: true`; flags `force`, `lock_reason`
+- For remove: `path` (required), `force`
+- For lock/unlock: `path` (required); lock accepts `lock_reason`
+- For prune: `expire` (e.g. `2.weeks.ago`)
+- For repair: `paths` (array of worktree paths)
+
+**Branch-addressed** — `git flow worktree`, requires the git-flow-next CLI:
+
+- `action`: `flow_path` / `flow_add` / `flow_remove` / `flow_list`
+- All require `branch` except `flow_list`; `flow_add` accepts an optional `path` override, `flow_remove` accepts `force`
+- `flow_path` creates nothing — use it to discover where a branch would land
+- `flow_remove` keeps the branch and refuses uncommitted work without `force`
+- `gitflow.worktreePath` controls placement; vars `{{ repo }}`, `{{ branch }}`, `{{ topicType }}`
+- `lock_reason` is rejected here: `git flow worktree add` has no lock flags
+
+---
+
 ## `git_flow` — Git Flow and git-flow-next workflows
+
+Drives the git-flow-next CLI, which must be installed and on `PATH` (`brew install git-flow-next`,
+or the releases page). Set `GIT_FLOW_BINARY` to override. A missing binary returns an install hint.
 
 - `operation=overview` or `action=overview`: show current flow state before mutating
 - Canonical form: `operation` (`init`/`overview`/`config`/`topic`/`control`) + sub-action
   - `topic_action`: `start`/`finish`/`publish`/`list`/`update`/`delete`/`rename`/`checkout`/`track`
-  - `control_action`: `continue` / `abort` (when a finish pauses on a conflict)
-  - `config_action`: `add`/`update`/`rename`/`delete`
+  - `control_action`: `continue` / `abort`, plus `recover`: `finish` (default) / `update`
+  - `config_action`: `list`/`add`/`update`/`rename`/`delete`/`status`/`sync`
 
-- Key params: `topic` (branch type), `name`, `start_point`, `base_ref`, `preset` (classic/github/gitlab)
-- Merge/integration: `upstream_strategy`, `downstream_strategy`, `ff`, `keep_branch`, `rebase_before_finish`, `publish`
+- Key params: `topic` (`feature`/`bugfix`/`release`/`hotfix`/`support`), `name`, `start_point`, `base_ref` (start only), `preset` (classic/github/gitlab)
+- Merge/integration: `upstream_strategy`, `downstream_strategy`, `ff`, `keep_branch`, `rebase_before_finish`, `publish`, `force_delete`, `strategy`
+- Worktrees: `worktree` + `worktree_path` on `start`/`checkout`; `keep_worktree` + `force_worktree` on `finish`/`delete`; `worktrees` on `list`
+- Flags are verb-scoped — a flag outside the target verb's set raises rather than being dropped
+- Unsupported and raising with a reason: `pattern`, `match_mode=prefix`, `no_backmerge`, `remote`, `staging_branch`, `production_branch`, `delete_branch`
+- No `--format` exists on any 2.1.0 command, so `response_format=json` returns the same text
 - Set `GIT_ALLOW_FLOW_HOOKS=true` in the server environment to allow hook execution
 
 ---
@@ -411,7 +442,7 @@ The server exposes **7 grouped tools** plus `git_flow`, `git_lfs`, `git_docs`, `
 | Merge branch             | `git_workspace` | `action=merge, merge_action=start, merge_refs=[...]`                   |
 | Bisect                   | `git_workspace` | `action=bisect, bisect_action=start, good_ref=..., bad_ref=...`        |
 | Create annotated tag     | `git_workspace` | `action=tag, tag_action=create, name=..., message=...`                 |
-| Add worktree             | `git_workspace` | `action=worktree, worktree_action=add, path=..., branch=...`           |
+| Add worktree             | `git_worktree`  | `action=add, path=..., branch=...`                                     |
 | Git Flow feature start   | `git_flow`      | `operation=topic, topic_action=start, topic=feature, name=...`         |
 | Git Flow release finish  | `git_flow`      | `operation=topic, topic_action=finish, topic=release, name=...`        |
 | LFS track patterns       | `git_lfs`       | `action=track, patterns=[...]`                                         |

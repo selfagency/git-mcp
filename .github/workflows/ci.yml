@@ -25,13 +25,30 @@ concurrency:
 
 jobs:
   ci:
-    name: Typecheck, Lint, Format, Build & Test
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} · Node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        # Windows is a real target, not an afterthought: git for Windows ships a
+        # POSIX sh but not exec permissions, npm CLIs are .cmd shims that
+        # execFile cannot spawn by bare name, and `taskkill /T` is the only way
+        # to kill a process tree. src/platform/exec.ts covers those; this job is
+        # what proves it.
+        os: [ ubuntu-latest, windows-latest ]
         node-version: [ 20.x ]
 
     steps:
+      - name: Configure git line endings
+        # Git for Windows defaults core.autocrlf to true, which rewrites the
+        # checkout to CRLF. oxfmt then sees every file as unformatted while the
+        # identical tree passes on ubuntu. Must run before checkout, and is
+        # scoped to the runner rather than the repo so no developer config is
+        # touched.
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --global core.autocrlf false
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -60,6 +77,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install git-flow-next
+        # git_flow and the flow_* worktree actions wrap this binary, so CI needs
+        # it to prove those paths work — especially on Windows, where the binary
+        # is a signed .exe that our PATH/PATHEXT resolver has to find.
+        # Pinned, and checksum-verified against the release's checksums file.
+        shell: bash
+        env:
+          GIT_FLOW_VERSION: v2.1.0
+        run: |
+          set -euo pipefail
+          case "${{ runner.os }}" in
+            Linux)   asset="git-flow-next-${GIT_FLOW_VERSION}-linux-amd64.tar.gz" ;;
+            Windows) asset="git-flow-next-${GIT_FLOW_VERSION}-windows-amd64.zip" ;;
+            *) echo "unsupported runner: ${{ runner.os }}"; exit 1 ;;
+          esac
+          base="https://github.com/gittower/git-flow-next/releases/download/${GIT_FLOW_VERSION}"
+          # Pin the protocol: a redirect to plain http would otherwise be
+          # followed, and this is the binary we go on to execute.
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/$asset" "$base/$asset"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/checksums.txt" "$base/git-flow-next-${GIT_FLOW_VERSION}-checksums.txt"
+          cd "$RUNNER_TEMP"
+          grep " $asset\$" checksums.txt | sha256sum --check --strict -
+          if [[ "$asset" == *.zip ]]; then
+            unzip -q -o "$asset" -d flowbin
+            install -m 0755 "$(find flowbin -type f -name 'git-flow*' | head -1)" "$RUNNER_TEMP/git-flow.exe"
+          else
+            # Extract to a subdirectory: $RUNNER_TEMP is the cwd, so extracting
+            # in place would make the source and the destination the same file.
+            mkdir -p flowbin && tar -xzf "$asset" -C flowbin
+            install -m 0755 "$(find flowbin -type f -name 'git-flow*' | head -1)" "$RUNNER_TEMP/git-flow"
+          fi
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          # $GITHUB_PATH applies to *later* steps, so prove the binary here.
+          PATH="$RUNNER_TEMP:$PATH" git flow version
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -74,6 +126,7 @@ jobs:
         run: pnpm build
 
       - name: Verify build outputs
+        shell: bash
         run: |
           test -f dist/index.js     || exit 1
           test -f dist/index.js.map || exit 1
@@ -95,3 +148,4 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: ${{ runner.os }}

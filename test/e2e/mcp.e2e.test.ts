@@ -182,6 +182,10 @@ describe('MCP server E2E - tools/list', () => {
 });
 
 describe('MCP server E2E - git_flow', () => {
+  // Protocol-level only: proves the tool is wired and never crashes the server,
+  // whether git-flow-next is missing, present but the repo is uninitialised, or
+  // fully working. The CLI-wrapper semantics are covered by flow-args unit tests
+  // and the integration suite's child_process mock.
   it('executes a git_flow overview request end-to-end', async () => {
     const id = nextId();
     writeRequest(server, {
@@ -192,13 +196,11 @@ describe('MCP server E2E - git_flow', () => {
         name: 'git_flow',
         arguments: {
           repo_path: process.cwd(),
-          action: 'overview',
-          response_format: 'json',
+          operation: 'overview',
+          response_format: 'markdown',
           tag: true,
-          delete_branch: true,
           force: false,
           no_create_branches: false,
-          no_backmerge: false,
         },
       },
     });
@@ -207,11 +209,10 @@ describe('MCP server E2E - git_flow', () => {
     expect(response.error).toBeUndefined();
     const result = response.result as {
       content: Array<{ type: string; text: string }>;
-      structuredContent: { initialized: boolean; compatibility: string };
     };
 
     expect(result.content[0].type).toBe('text');
-    expect(result.structuredContent).toHaveProperty('compatibility');
+    expect(result.content[0].text.length).toBeGreaterThan(0);
   });
 });
 

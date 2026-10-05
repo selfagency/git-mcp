@@ -138,12 +138,14 @@ describe('validatePathArgument', () => {
   });
 
   it('rejects a path that escapes via symlink', () => {
+    // Resolve through path.resolve so the fixture holds on Windows, where
+    // '/repo' is drive-relative and validateRepoPath returns 'C:\repo'. A literal
+    // '/repo' comparison silently stops matching there, which made realRoot equal
+    // the target and let the traversal pass.
+    const root = path.resolve('/repo');
+    const outside = path.resolve('/etc/passwd');
     vi.mocked(existsSync).mockReturnValue(true);
-    vi.mocked(realpathSync).mockImplementation((p: unknown) => {
-      if (p === '/repo') return '/repo';
-      // The symlink target resolves outside the repo root.
-      return '/etc/passwd';
-    });
+    vi.mocked(realpathSync).mockImplementation((p: unknown) => (p === root ? root : outside));
     expect(() => validatePathArgument('/repo', 'link')).toThrow('via symlink');
   });
 

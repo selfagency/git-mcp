@@ -114,10 +114,14 @@ Use for hotfixes and maintenance branches.
 
 Prefer this order when choosing a worktree location:
 
-1. existing `.worktrees/`
-2. existing `worktrees/`
-3. a documented project preference
+1. `gitflow.worktreePath`, if the repo uses git flow — it is the documented convention
+2. existing `.worktrees/`
+3. existing `worktrees/`
 4. ask the user
+
+With git flow, ask `git_worktree action=flow_path branch=<branch>` first. It is free, creates
+nothing, and tells you where the branch would land under the configured template. Then either use
+the computed path, or pass it to `flow_add path=<dir>` to override for one call.
 
 ### Safety checks
 
@@ -127,22 +131,29 @@ Before creating a project-local worktree:
 - Inspect `.gitignore` to confirm the directory is ignored
 - If it is not ignored, fix that first
 
+A sibling directory outside the repo (git flow's `../<repo>-worktrees/` default) needs no ignore
+rule, because it is never inside the working tree.
+
 ### Creation flow
 
 1. Orient: `git_context action=summary`
 2. Choose location and branch name
 3. Create the worktree:
-   - `git_workspace action=worktree worktree_action=add path=<dir> branch=<branch>`
-   - For a detached worktree: add `worktree_detached=true`
+   - plain git, path known: `git_worktree action=add path=<dir> branch=<branch>`
+   - for a detached worktree: add `detached=true`
+   - git flow, path from template: `git_worktree action=flow_add branch=<branch>`
 4. Run project setup and baseline validation
 5. Report the worktree path and baseline status
 
 ### Cleanup
 
-- Remove: `git_workspace action=worktree worktree_action=remove path=<dir>`
-- Lock while temporarily unused: `git_workspace action=worktree worktree_action=lock path=<dir> worktree_lock_reason="in-progress"`
-- Prune stale entries: `git_workspace action=worktree worktree_action=prune`
-- View all: `git_workspace action=worktree worktree_action=list`
+- Remove: `git_worktree action=remove path=<dir>`, or `action=flow_remove branch=<branch>`
+- Lock while temporarily unused: `git_worktree action=lock path=<dir> lock_reason="in-progress"`
+- Prune stale entries: `git_worktree action=prune`
+- View all: `git_worktree action=list` (porcelain), or `action=flow_list` (with provenance)
+
+`flow_remove` keeps the branch and refuses uncommitted work unless you pass `force: true`. Prefer
+resolving the conflict in the worktree over forcing it.
 
 Red flags:
 

@@ -121,6 +121,14 @@ export const BUT_BINARY: string = process.env['BUT_BINARY'] || 'but';
 export const JJ_BINARY: string = process.env['JJ_BINARY'] || 'jj';
 
 /**
+ * Executable used for `git_flow`. git_flow is a thin wrapper over the
+ * git-flow-next CLI rather than a reimplementation, so this binary must be
+ * installed and on PATH.
+ * Set via: GIT_FLOW_BINARY=<path>
+ */
+export const GIT_FLOW_BINARY: string = process.env['GIT_FLOW_BINARY'] || 'git-flow';
+
+/**
  * When true, tools that detect and guide toward Tangled and Entire are enabled.
  * Enable via: GIT_ALLOW_TANGLED=true / GIT_ALLOW_ENTIRE=true
  */

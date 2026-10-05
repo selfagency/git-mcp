@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { getGit } from '../git/client.js';
+import { shellPath } from '../platform/exec.js';
 import { assertCleanWorktree, assertNoInProgressOperation, assertNotDetached } from './preflight.js';
 
 export interface RewordOptions {
@@ -64,7 +65,7 @@ export async function rewordCommit(repoPath: string, options: RewordOptions): Pr
 
     // The filter script references only fixed paths — never user message
     // content — so shell metacharacters in the message cannot execute.
-    const filter = `if [ "$GIT_COMMIT" = "${options.ref}" ]; then cat "${msgFile}"; else cat; fi`;
+    const filter = `if [ "$GIT_COMMIT" = "${options.ref}" ]; then cat "${shellPath(msgFile)}"; else cat; fi`;
     await git.raw(['filter-branch', '--force', '--msg-filter', filter, '--', 'HEAD']);
     return `Reworded ${options.ref} to: ${options.message}`;
   } finally {
@@ -118,7 +119,7 @@ export async function rewriteMessages(repoPath: string, options: RewriteMessages
     const mapFile = path.join(dir, 'messages.txt');
     writeFileSync(mapFile, entries.map(([sha, message]) => `${sha} ${message}`).join('\n'), 'utf8');
 
-    const filter = `line=$(grep "^$GIT_COMMIT " "${mapFile}"); if [ -n "$line" ]; then printf '%s' "\${line#* }"; else cat; fi`;
+    const filter = `line=$(grep "^$GIT_COMMIT " "${shellPath(mapFile)}"); if [ -n "$line" ]; then printf '%s' "\${line#* }"; else cat; fi`;
     await git.raw(['filter-branch', '--force', '--msg-filter', filter, '--', options.range]);
     return `Rewrote messages for ${entries.length} commit(s) in ${options.range}.`;
   } finally {

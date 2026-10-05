@@ -22,6 +22,14 @@ vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(true),
 }));
 
+// git_flow is a thin wrapper over the git-flow-next binary, so its tests mock
+// the child process rather than simple-git.
+const mockExecFile = vi.hoisted(() => vi.fn());
+vi.mock('node:child_process', () => ({
+  execFile: mockExecFile,
+  spawn: vi.fn(),
+}));
+
 // Mock getGit so all service calls go through a controlled mock.
 // Must use vi.hoisted() so the value is available inside the vi.mock() factory,
 // which is hoisted to the top of the file before any const declarations run.
@@ -294,73 +302,70 @@ describe('git_context tool', () => {
 // git_flow
 // ---------------------------------------------------------------------------
 describe('git_flow tool', () => {
-  it('returns overview data', async () => {
-    mockGit.raw.mockImplementation(async (args: string[]) => {
-      if (args[0] === 'config' && args[1] === '--get-regexp') {
-        return [
-          'gitflow.version 1.0',
-          'gitflow.initialized true',
-          'gitflow.branch.main.type base',
-          'gitflow.branch.feature.type topic',
-          'gitflow.branch.feature.parent main',
-          'gitflow.branch.feature.prefix feature/',
-        ].join('\n');
-      }
-
-      if (args[0] === 'for-each-ref') {
-        return 'feature/test\torigin/feature/test\t=';
-      }
-
-      return '';
-    });
-    mockGit.status.mockResolvedValue({
-      current: 'feature/test',
-      tracking: 'origin/feature/test',
-      ahead: 0,
-      behind: 0,
-      files: [],
-      isClean: () => true,
-    });
-
-    const result = await callTool(server, 'git_flow', {
-      repo_path: '/repo',
-      action: 'overview',
-      response_format: 'json',
-      tag: true,
-      delete_branch: true,
-      force: false,
-      no_create_branches: false,
-    });
-
-    expect(result.content[0].type).toBe('text');
-    expect(result.structuredContent).toMatchObject({
-      initialized: true,
-      compatibility: 'structured',
-    });
+  beforeEach(() => {
+    mockExecFile.mockReset();
   });
 
-  it('accepts the canonical operation contract', async () => {
-    mockGit.raw.mockResolvedValue('');
+  it('runs the git-flow CLI and returns its JSON overview', async () => {
+    mockExecFile.mockImplementation((_file: string, _args: string[], _opts: unknown, callback: unknown) => {
+      (callback as (e: Error | null, r: { stdout: string; stderr: string }) => void)(null, {
+        stdout: JSON.stringify({ initialized: true, health: { status: 'healthy' } }),
+        stderr: '',
+      });
+    });
 
     const result = await callTool(server, 'git_flow', {
       repo_path: '/repo',
-      operation: 'config',
-      config_action: 'add',
-      name: 'qa',
-      branch_kind: 'base',
-      parent: 'main',
+      operation: 'overview',
       response_format: 'json',
       tag: true,
-      delete_branch: true,
       force: false,
       no_create_branches: false,
-      no_backmerge: false,
     });
 
-    expect(result.structuredContent).toMatchObject({
-      action: 'add',
-      branch: { name: 'qa', kind: 'base' },
+    expect(mockExecFile.mock.calls[0]?.[1]).toEqual(['overview']);
+    expect(result.structuredContent).toMatchObject({ output: expect.stringContaining('healthy') });
+  });
+
+  it('reports the install hint when the CLI is missing', async () => {
+    mockExecFile.mockImplementation((_file: string, _args: string[], _opts: unknown, callback: unknown) => {
+      const error = new Error('spawn git-flow ENOENT') as Error & { code?: string };
+      error.code = 'ENOENT';
+      (callback as (e: Error) => void)(error);
     });
+
+    const result = await callTool(server, 'git_flow', {
+      repo_path: '/repo',
+      operation: 'overview',
+      response_format: 'markdown',
+      tag: true,
+      force: false,
+      no_create_branches: false,
+    });
+
+    expect(result.content[0].text).toContain('git-flow-next is not installed');
+  });
+
+  it('rejects an option the CLI cannot express rather than dropping it', async () => {
+    mockExecFile.mockImplementation((_file: string, _args: string[], _opts: unknown, callback: unknown) => {
+      (callback as (e: Error | null, r: { stdout: string; stderr: string }) => void)(null, { stdout: '', stderr: '' });
+    });
+
+    const result = await callTool(server, 'git_flow', {
+      repo_path: '/repo',
+      operation: 'topic',
+      topic_action: 'start',
+      topic: 'feature',
+      name: 'auth',
+      worktree_path: '../review',
+      response_format: 'markdown',
+      tag: true,
+      force: false,
+      no_create_branches: false,
+    });
+
+    expect(result.content[0].text).toContain('worktree_path requires worktree=true');
+    expect(mockExecFile).not.toHaveBeenCalled();
   });
 });
 
