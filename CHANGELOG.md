@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
+## 📦 Uncategorized
+
+- fix(ci): make MCP registry publish depend on create-tag, not release output
+   - PR: #19
+- fix(windows): resolve binaries via PATHEXT, and drive git-flow-next from git_flow
+   - PR: #20
+
+_Source: changes from v0.3.0 to v0.4.0._
+
+
 ### Breaking
 
 - **flow**: `git_flow` now drives the [git-flow-next](https://git-flow.sh) CLI and requires it installed and on `PATH` (`brew install git-flow-next`, or the releases page; override with `GIT_FLOW_BINARY`). The in-process reimplementation is gone. A missing binary returns an install hint rather than failing opaquely.
