@@ -4,9 +4,9 @@
   "description": "Production-grade Git MCP server built with TypeScript and simple-git",
   "serverInfo": {
     "name": "git-mcp",
-    "version": "0.4.1"
+    "version": "0.4.2"
   },
-  "version": "0.4.1",
+  "version": "0.4.2",
   "homepage": "https://git-mcp.self.agency",
   "repository": {
     "url": "https://github.com/selfagency/git-mcp",

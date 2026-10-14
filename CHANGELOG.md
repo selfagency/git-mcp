@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-14
+
+## 📦 Uncategorized
+
+- fix(ci): publish to MCP registry on tag-push releases
+   - PR: #24
+
+_Source: changes from v0.4.1 to v0.4.2._
+
+
 ## [0.4.1] - 2026-10-14
 
 ## 📦 Uncategorized
