@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-14
+
+## 📦 Uncategorized
+
+- fix(ci): make MCP registry publish depend on create-tag, not release output
+   - PR: #19
+- fix(windows): resolve binaries via PATHEXT, and drive git-flow-next from git_flow
+   - PR: #20
+- fix(ci): stop gating the changelog on formatting
+   - PR: #21
+
+_Source: changes from v0.3.0 to v0.4.0._
+
+
 ## [0.4.0] - 2026-10-05
 
 ## 📦 Uncategorized
