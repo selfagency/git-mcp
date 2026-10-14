@@ -71,6 +71,7 @@ function registerGitStatusTool(server: McpServer): void {
         summary: z.unknown().optional(),
         output: z.unknown().optional(),
         base_branch: z.string().optional(),
+        merge_base: z.string().optional(),
       }),
       annotations: {
         readOnlyHint: true,
@@ -176,9 +177,8 @@ function registerGitHistoryTool(server: McpServer): void {
       outputSchema: z.object({
         commits: z.array(z.unknown()).optional(),
         output: z.unknown().optional(),
-        blame: z.unknown().optional(),
-        reflog: z.unknown().optional(),
-        contributors: z.unknown().optional(),
+        ref: z.string().optional(),
+        file_path: z.string().nullable().optional(),
       }),
       annotations: {
         readOnlyHint: true,
