@@ -10,6 +10,7 @@
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
 // Mock simple-git and git client
@@ -2091,5 +2092,105 @@ describe('git_status diff_main action', () => {
     });
     expect(result.structuredContent).toHaveProperty('merge_base');
     expect(result.structuredContent.base_branch).toBe('main');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// outputSchema compliance
+// ---------------------------------------------------------------------------
+// The SDK validates successful results against each tool's declared
+// outputSchema with additionalProperties:false, and OpenCode rejects the
+// -32602 when they disagree. These tests pin every success shape a tool can
+// return against its own declared schema, so a handler change that adds a
+// field fails here instead of at the client.
+//
+// Error results are exempt: the SDK skips validation when isError is set
+// (mcp.js:191), so buildToolError's extra fields are safe on every tool.
+describe('outputSchema compliance', () => {
+  function schemaFor(name: string): z.ZodTypeAny {
+    const tool = (server as any)._registeredTools[name];
+    expect(tool, `${name} must be registered`).toBeTruthy();
+    expect(tool.outputSchema, `${name} must declare outputSchema`).toBeTruthy();
+    return tool.outputSchema as z.ZodTypeAny;
+  }
+
+  async function expectValid(name: string, args: Record<string, unknown>): Promise<void> {
+    const result = await callTool(server, name, args);
+    expect(result.isError, `${name} returned an error: ${JSON.stringify(result.content)}`).toBeFalsy();
+    expect(result.structuredContent, `${name} returned no structuredContent`).toBeTruthy();
+    expect(() => schemaFor(name).parse(result.structuredContent)).not.toThrow();
+  }
+
+  it('git_status status', async () => {
+    mockGit.status.mockResolvedValue({
+      current: 'main',
+      tracking: 'origin/main',
+      ahead: 0,
+      behind: 0,
+      files: [],
+      isClean: () => true,
+    });
+    await expectValid('git_status', { repo_path: '/repo', action: 'status' });
+  });
+
+  it('git_status diff', async () => {
+    mockGit.diffSummary.mockResolvedValue({ files: [{}], insertions: 1, deletions: 0 });
+    mockGit.raw.mockResolvedValue('diff');
+    await expectValid('git_status', { repo_path: '/repo', action: 'diff' });
+  });
+
+  it('git_status diff_main — the shape that regressed', async () => {
+    mockGit.raw.mockResolvedValueOnce('mergebase123\n').mockResolvedValue('diff --git a/x b/x\n+added');
+    mockGit.diffSummary.mockResolvedValue({ files: [{}], insertions: 3, deletions: 0 });
+    await expectValid('git_status', { repo_path: '/repo', action: 'diff_main', base_branch: 'main' });
+  });
+
+  it('git_history log', async () => {
+    mockGit.log.mockResolvedValue({ all: [] });
+    await expectValid('git_history', { repo_path: '/repo', action: 'log' });
+  });
+
+  it('git_history show — returns ref alongside output', async () => {
+    mockGit.raw.mockResolvedValue('commit output');
+    await expectValid('git_history', { repo_path: '/repo', action: 'show', ref: 'HEAD' });
+  });
+
+  it('git_history reflog', async () => {
+    mockGit.raw.mockResolvedValue('reflog lines');
+    await expectValid('git_history', { repo_path: '/repo', action: 'reflog' });
+  });
+
+  it('git_history blame — returns file_path and ref alongside output', async () => {
+    mockGit.raw.mockResolvedValue('blame output');
+    await expectValid('git_history', { repo_path: '/repo', action: 'blame', file_path: 'src/index.ts' });
+  });
+
+  it('git_history lg', async () => {
+    mockGit.raw.mockResolvedValue('* abc123 commit');
+    await expectValid('git_history', { repo_path: '/repo', action: 'lg' });
+  });
+
+  it('git_history who — returns file_path alongside output', async () => {
+    mockGit.raw.mockResolvedValue(' 12\tDaniel');
+    await expectValid('git_history', { repo_path: '/repo', action: 'who' });
+  });
+
+  it('git_branches list', async () => {
+    mockGit.branch.mockResolvedValue({
+      current: 'main',
+      all: ['main'],
+      branches: { main: { current: true, commit: 'abc', label: 'main' } },
+    });
+    await expectValid('git_branches', { repo_path: '/repo', action: 'list' });
+  });
+
+  it('git_branches checkout — the mutation whose response was rejected', async () => {
+    mockGit.raw.mockResolvedValue('Switched to branch feature');
+    await expectValid('git_branches', { repo_path: '/repo', action: 'checkout', ref: 'feature' });
+  });
+
+  it('git_branches recent', async () => {
+    mockGit.raw.mockResolvedValue('main (2 days ago)');
+    await expectValid('git_branches', { repo_path: '/repo', action: 'recent' });
   });
 });
