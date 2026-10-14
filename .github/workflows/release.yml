@@ -561,14 +561,18 @@ jobs:
 
   publish-mcp:
     name: Publish to MCP Registry
-    needs: [ release, create-tag ]
+    needs: [ release, create-tag, detect-tag ]
     # always() prevents a skipped detect-tag (push-only guard) from cascading
-    # into a skip here on workflow_dispatch. The release job may not propagate
-    # its outputs when running via always() after a skipped dependency, so read
-    # the tag from create-tag (which provably propagates) and gate on the
-    # release job's actual result.
+    # into a skip here on workflow_dispatch, and a skipped create-tag
+    # (dispatch-only guard) from cascading into a skip here on tag-push. The
+    # release job may not propagate its outputs when running via always() after
+    # a skipped dependency, so read the tag from create-tag (dispatch path) or
+    # detect-tag (tag-push path) and gate on the release job's actual result.
     if: |
-      always() && needs.release.result == 'success' && needs.create-tag.outputs.release_tag != ''
+      always() && needs.release.result == 'success' && (
+        needs.create-tag.outputs.release_tag != '' ||
+        needs.detect-tag.outputs.release_tag != ''
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -579,7 +583,7 @@ jobs:
       - name: Checkout repository at release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.create-tag.outputs.release_tag }}
+          ref: ${{ needs.create-tag.outputs.release_tag || needs.detect-tag.outputs.release_tag }}
           fetch-depth: 0
 
       - name: Setup Node.js
