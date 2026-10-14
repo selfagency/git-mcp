@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-14
+
+## 📦 Uncategorized
+
+- fix(tools): make declared outputSchema match actual structuredContent
+   - PR: #21
+- fix(release): carry mcpName into the published dist package
+   - PR: #23
+
+_Source: changes from v0.4.0 to v0.4.1._
+
 ## [0.4.0] - 2026-10-14
 
 ## 📦 Uncategorized
